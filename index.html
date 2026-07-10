@@ -625,7 +625,7 @@ async function renderGrid(){
         if(r.status==='club_blocked'){ cls='blocked'; tag = isHead ? (r.event_name||'Akce') : ''; clickable = isAdmin(); }
         else if(r.is_open_match && r.status==='paid_confirmed'){ cls='openmatch'; tag = isHead ? 'Open Match' : ''; }
         else if(profile && r.member_id===profile.user_id){ cls='mine'; tag = isHead ? (r.status==='pending_payment' ? 'Čeká platba' : 'Moje') : ''; }
-        else { cls='blocked'; tag = isHead ? 'Obsazeno' : ''; clickable = isAdmin(); }
+        else { cls='blocked'; tag = isHead ? (isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno') : ''; clickable = isAdmin(); }
         if(!isHead) cls += ' continuation';
       }
       html += `<div class="cell"><div class="slot ${cls}" ${clickable?`onclick="openSlot('${court.id}',${s})"`:''}>${tag?`<span class="tag">${tag}</span>`:''}</div></div>`;
