@@ -184,6 +184,7 @@
   <button data-view="mine">Moje rezervace</button>
   <button data-view="openmatches">Open Matches</button>
   <button data-view="calendar">Kalendář</button>
+  <button id="barTab" onclick="window.open('https://padelklatovy.github.io/padel-klatovy-bar/', '_blank')" style="margin-left:auto;display:none;">🍺 Klubový bar ↗</button>
   <button data-view="admin">Admin</button>
 </nav>
 
@@ -229,7 +230,11 @@
     <h1 class="page-title">Kalendář akcí</h1>
     <p class="page-sub">Klubové akce se automaticky promítají do dostupnosti kurtů v modulu Rezervace.</p>
     <div class="card-list" id="calendarList">Načítání…</div>
-    <div style="margin-top:18px;"><button class="btn btn-ghost" onclick="window.open('https://padelklatovy.github.io/kalendar/', '_blank')">Otevřít plný kalendář ↗</button></div>
+    <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-ghost" onclick="window.open('https://padelklatovy.github.io/kalendar/', '_blank')">Otevřít plný kalendář ↗</button>
+      <button class="btn btn-ghost" onclick="window.open('https://padelklatovy.github.io/padel-klatovy-bar/', '_blank')">🍺 Klubový bar ↗</button>
+      <button class="btn btn-ghost" onclick="window.open('https://padelklatovy.github.io/zdravyhrac/', '_blank')">❤️ Zdravý hráč ↗</button>
+    </div>
   </section>
 
   <section class="view" id="view-admin">
@@ -501,12 +506,14 @@ function renderHeader(){
       </div>`;
   }
   document.querySelector('[data-view="admin"]').style.display = isAdmin() ? '' : 'none';
+  document.getElementById('barTab').style.display = profile ? '' : 'none';
 }
 function toggleProfileMenu(e){ e.stopPropagation(); document.getElementById('profileMenu').classList.toggle('show'); }
 function closeProfileMenu(){ const m=document.getElementById('profileMenu'); if(m) m.classList.remove('show'); }
 document.addEventListener('click', closeProfileMenu);
 document.getElementById('tabs').addEventListener('click', (e)=>{
   if(e.target.tagName !== 'BUTTON') return;
+  if(!e.target.dataset.view) return;
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.remove('active'));
   e.target.classList.add('active');
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
@@ -1350,6 +1357,13 @@ async function renderAll(){
 
   const urlVenue = new URLSearchParams(window.location.search).get('venue');
   if(urlVenue && venuesConfig[urlVenue]){ await selectProduct(urlVenue); }
+
+  const urlTab = new URLSearchParams(window.location.search).get('tab');
+  if(urlTab && document.getElementById('view-'+urlTab)){
+    document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active', b.dataset.view===urlTab));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById('view-'+urlTab).classList.add('active');
+  }
 
   const { data: { session: s } } = await sb.auth.getSession();
   session = s;
