@@ -427,7 +427,13 @@ let gridReservations = [];      // rezervace pro aktuální venue+datum
 let booking = null;
 let activeReservationId = null;
 
-function todayISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function toLocalISODate(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function todayISO(){ return toLocalISODate(new Date()); }
 function activeLoc(){ return venuesConfig[currentLocationId]; }
 function isAdmin(){ return profile && (profile.role==='admin' || profile.role==='owner'); }
 function slotStarts(loc){
@@ -684,8 +690,8 @@ function openBookingModal({courtId, startHour, adminMode}){
   document.getElementById('seriesName').value = '';
   const untilDefault = new Date(selectedDate+'T00:00:00'); untilDefault.setDate(untilDefault.getDate()+84);
   const minUntil = new Date(selectedDate+'T00:00:00'); minUntil.setDate(minUntil.getDate()+7);
-  document.getElementById('seriesUntil').value = untilDefault.toISOString().slice(0,10);
-  document.getElementById('seriesUntil').min = minUntil.toISOString().slice(0,10);
+  document.getElementById('seriesUntil').value = toLocalISODate(untilDefault);
+  document.getElementById('seriesUntil').min = toLocalISODate(minUntil);
 
   document.getElementById('paidToggleBox').innerHTML = adminMode ? `
     <div class="checkbox-row"><input type="checkbox" id="paidNowCheck" onchange="booking.paidNow=this.checked">
@@ -883,7 +889,7 @@ async function confirmBookingRecurring(){
   const dates = [];
   let d = new Date(selectedDate+'T00:00:00');
   const until = new Date(untilStr+'T00:00:00');
-  while(d <= until){ dates.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+7); }
+  while(d <= until){ dates.push(toLocalISODate(d)); d.setDate(d.getDate()+7); }
   if(dates.length < 2){ toast('Vyber datum aspoň o týden později'); return; }
   if(dates.length > 60){ toast('Max. 60 opakování najednou (bezpečnostní pojistka)'); return; }
 
@@ -1337,7 +1343,7 @@ document.getElementById('nextDay').onclick = ()=>{ shiftDate(1); };
 document.getElementById('todayBtn').onclick = ()=>{ selectedDate = todayISO(); renderGrid(); };
 function shiftDate(delta){
   const d = new Date(selectedDate+'T00:00:00'); d.setDate(d.getDate()+delta);
-  selectedDate = d.toISOString().slice(0,10); renderGrid();
+  selectedDate = toLocalISODate(d); renderGrid();
 }
 
 /* ================= RENDER ALL / INIT ================= */
