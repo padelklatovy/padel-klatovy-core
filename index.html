@@ -202,7 +202,10 @@
       <div class="date-bar">
         <div class="date-nav"><button class="icon-btn" id="prevDay">‹</button><button class="icon-btn" id="nextDay">›</button></div>
         <div class="date-label" id="dateLabel"></div>
-        <button class="btn btn-ghost btn-sm" id="todayBtn">Dnes</button>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="date" id="datePicker" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:14px;background:#fff;">
+          <button class="btn btn-ghost btn-sm" id="todayBtn">Dnes</button>
+        </div>
       </div>
       <div class="grid-scroll"><div class="court-grid" id="courtGrid">Načítání…</div></div>
       <div class="legend">
@@ -606,6 +609,7 @@ async function renderGrid(){
   const loc = activeLoc();
   const starts = slotStarts(loc);
   document.getElementById('dateLabel').textContent = fmtDate(selectedDate);
+  document.getElementById('datePicker').value = selectedDate;
   const grid = document.getElementById('courtGrid');
   let html = `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},1fr);"><div class="cell court-label" style="background:var(--ink);color:#fff;"></div>`;
   starts.forEach(s => html += `<div class="cell ${s%1!==0?'half':''}">${formatHour(s)}</div>`);
@@ -1348,6 +1352,7 @@ function emptyState(title, sub){ return `<div class="empty-state"><div class="em
 document.getElementById('prevDay').onclick = ()=>{ shiftDate(-1); };
 document.getElementById('nextDay').onclick = ()=>{ shiftDate(1); };
 document.getElementById('todayBtn').onclick = ()=>{ selectedDate = todayISO(); renderGrid(); };
+document.getElementById('datePicker').onchange = (e)=>{ if(e.target.value){ selectedDate = e.target.value; renderGrid(); } };
 function shiftDate(delta){
   const d = new Date(selectedDate+'T00:00:00'); d.setDate(d.getDate()+delta);
   selectedDate = toLocalISODate(d); renderGrid();
