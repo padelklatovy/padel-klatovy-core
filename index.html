@@ -1327,6 +1327,10 @@ async function renderAll(){
 (async function init(){
   await loadVenues();
   renderProductSelector();
+
+  const urlVenue = new URLSearchParams(window.location.search).get('venue');
+  if(urlVenue && venuesConfig[urlVenue]){ await selectProduct(urlVenue); }
+
   const { data: { session: s } } = await sb.auth.getSession();
   session = s;
   if(session) await loadProfile();
