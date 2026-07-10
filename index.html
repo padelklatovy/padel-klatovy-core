@@ -20,12 +20,17 @@
 
   header.app-header{position:sticky;top:0;z-index:50;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:4px solid var(--red);}
   .brand{display:flex;align-items:center;gap:10px;}
-  .brand-mark{width:34px;height:34px;background:var(--red);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:16px;color:#fff;transform:skew(-6deg);}
+  .brand-logo-card{background:#fff;border-radius:8px;padding:4px 10px;display:flex;align-items:center;}
+  .brand-logo-img{height:36px;display:block;}
   .brand-name{font-family:var(--font-head);font-weight:700;font-size:20px;letter-spacing:0.5px;text-transform:uppercase;}
   .brand-name span{color:var(--red);}
   .header-right{display:flex;align-items:center;gap:12px;}
-  .profile-pill{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.08);padding:6px 12px;border-radius:100px;font-size:13px;cursor:pointer;border:1px solid rgba(255,255,255,0.15);}
+  .profile-pill{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.08);padding:6px 12px;border-radius:100px;font-size:13px;cursor:pointer;border:1px solid rgba(255,255,255,0.15);position:relative;}
   .profile-pill .dot{width:8px;height:8px;border-radius:50%;background:var(--green-soft);}
+  .profile-menu{position:absolute;top:calc(100% + 8px);right:0;background:#fff;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.25);min-width:160px;display:none;overflow:hidden;z-index:60;}
+  .profile-menu.show{display:block;}
+  .profile-menu button{width:100%;text-align:left;background:none;border:none;padding:10px 14px;font-size:13px;font-family:var(--font-body);color:var(--ink);cursor:pointer;}
+  .profile-menu button:hover{background:var(--paper-dim);}
   .btn{font-family:var(--font-head);font-weight:600;letter-spacing:0.3px;border:none;border-radius:6px;padding:10px 18px;cursor:pointer;font-size:15px;transition:transform .12s ease;}
   .btn:active{transform:scale(0.97);}
   .btn:disabled{opacity:0.4;cursor:not-allowed;}
@@ -67,15 +72,15 @@
   .icon-btn:hover{background:var(--paper-dim);}
 
   .grid-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff;}
-  .court-grid{min-width:1400px;}
+  .court-grid{width:100%;}
   .grid-row{display:grid;border-top:1px solid var(--line);}
   .grid-row:first-child{border-top:none;background:var(--ink);}
-  .grid-row:first-child .cell{color:#fff;font-family:var(--font-head);font-size:11px;text-align:center;padding:8px 0;font-weight:600;}
+  .grid-row:first-child .cell{color:#fff;font-family:var(--font-head);font-size:10px;text-align:center;padding:8px 0;font-weight:600;}
   .grid-row:first-child .cell.half{color:#8a847a;}
-  .court-label{padding:14px 12px;font-family:var(--font-head);font-weight:600;font-size:15px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;background:var(--paper);position:sticky;left:0;z-index:2;}
-  .court-label small{font-weight:400;font-size:11px;color:#8a847a;text-transform:uppercase;letter-spacing:0.4px;}
-  .cell{border-right:1px solid var(--line);}
-  .slot{height:46px;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;transition:background .1s ease;}
+  .court-label{padding:14px 10px;font-family:var(--font-head);font-weight:600;font-size:14px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;background:var(--paper);position:sticky;left:0;z-index:2;}
+  .court-label small{font-weight:400;font-size:10px;color:#8a847a;text-transform:uppercase;letter-spacing:0.4px;}
+  .cell{border-right:1px solid var(--line);min-width:0;}
+  .slot{height:44px;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;transition:background .1s ease;overflow:hidden;}
   .slot:hover{background:#FDECEC;}
   .slot.free{background:repeating-linear-gradient(135deg, #fff, #fff 6px, #FCFAF7 6px, #FCFAF7 12px);}
   .slot.mine{background:var(--ok-bg);}
@@ -170,7 +175,7 @@
 <div class="banner warn">🔒 <b>Testovací nasazení</b> — připojeno na skutečný Supabase, ale bez zapnutého Row Level Security. Nesdílej tento odkaz veřejně, dokud nebude RLS hotové.</div>
 
 <header class="app-header">
-  <div class="brand"><div class="brand-mark">P</div><div class="brand-name">PADEL <span>KLATOVY</span></div></div>
+  <div class="brand"><div class="brand-logo-card"><img src="logo.png" alt="Padel Klatovy" class="brand-logo-img"></div></div>
   <div class="header-right" id="headerRight"></div>
 </header>
 
@@ -366,6 +371,12 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ================= CONFIG (statické konstanty, zbytek jde z DB) ================= */
 const MAX_DURATION_CAP = 4;
+const VENUE_ORDER = ['padel-klatovy', 'beachvolley-klatovy', 'padel-brandys'];
+function orderedVenueSlugs(){
+  const known = VENUE_ORDER.filter(s => venuesConfig[s]);
+  const rest = Object.keys(venuesConfig).filter(s => !VENUE_ORDER.includes(s)).sort();
+  return known.concat(rest);
+}
 const DISCOUNT_OPTIONS = [0, 20, 50, 100];
 const PLAYER_LEVELS = [
   { code:'D2', label:'D2 — Začátečník' },
@@ -458,10 +469,19 @@ function renderHeader(){
   if(!session){ el.innerHTML = `<button class="btn btn-primary btn-sm" onclick="showModal('loginOverlay')">Přihlásit se</button>`; }
   else if(!profile){ el.innerHTML = `<span style="font-size:13px;">Dokonči registraci…</span>`; }
   else {
-    el.innerHTML = `<div class="profile-pill" onclick="logout()" title="Kliknutím se odhlásíš"><span class="dot"></span> ${profile.full_name.split(' ')[0]} ${isAdmin()?'· admin':''}</div>`;
+    el.innerHTML = `
+      <div class="profile-pill" onclick="toggleProfileMenu(event)">
+        <span class="dot"></span> ${profile.full_name.split(' ')[0]} ${isAdmin()?'· admin':''}
+        <div class="profile-menu" id="profileMenu">
+          <button onclick="event.stopPropagation();closeProfileMenu();logout()">Odhlásit se</button>
+        </div>
+      </div>`;
   }
   document.querySelector('[data-view="admin"]').style.display = isAdmin() ? '' : 'none';
 }
+function toggleProfileMenu(e){ e.stopPropagation(); document.getElementById('profileMenu').classList.toggle('show'); }
+function closeProfileMenu(){ const m=document.getElementById('profileMenu'); if(m) m.classList.remove('show'); }
+document.addEventListener('click', closeProfileMenu);
 document.getElementById('tabs').addEventListener('click', (e)=>{
   if(e.target.tagName !== 'BUTTON') return;
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.remove('active'));
@@ -496,7 +516,7 @@ async function loadVenues(){
 /* ================= PRODUKTOVÝ VÝBĚR ================= */
 function renderProductSelector(){
   const el = document.getElementById('productSelector');
-  el.innerHTML = Object.keys(venuesConfig).map(slug=>{
+  el.innerHTML = orderedVenueSlugs().map(slug=>{
     const loc = venuesConfig[slug];
     return `<div class="product-card">
       <div class="product-photo">${loc.sport}</div>
@@ -551,12 +571,12 @@ async function renderGrid(){
   const starts = slotStarts(loc);
   document.getElementById('dateLabel').textContent = fmtDate(selectedDate);
   const grid = document.getElementById('courtGrid');
-  let html = `<div class="grid-row" style="grid-template-columns:150px repeat(${starts.length},1fr);"><div class="cell court-label" style="background:var(--ink);color:#fff;"></div>`;
+  let html = `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},1fr);"><div class="cell court-label" style="background:var(--ink);color:#fff;"></div>`;
   starts.forEach(s => html += `<div class="cell ${s%1!==0?'half':''}">${formatHour(s)}</div>`);
   html += `</div>`;
 
   loc.courts.forEach(court => {
-    html += `<div class="grid-row" style="grid-template-columns:150px repeat(${starts.length},1fr);"><div class="court-label">${court.name}<small>${court.sub||''}</small></div>`;
+    html += `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},1fr);"><div class="court-label">${court.name}<small>${court.sub||''}</small></div>`;
     starts.forEach(s => {
       const r = findReservationAt(court.id, s);
       let cls='free', tag='', clickable=true;
@@ -955,7 +975,7 @@ async function renderAdmin(){
 
   const courtSel = document.getElementById('blockCourt');
   courtSel.innerHTML = '';
-  Object.keys(venuesConfig).forEach(slug=>{
+  Object.keys(venuesConfig).length && orderedVenueSlugs().forEach(slug=>{
     const grp = document.createElement('optgroup'); grp.label = venuesConfig[slug].name;
     venuesConfig[slug].courts.forEach(c=>{ const o=document.createElement('option'); o.value=c.id; o.textContent=c.name; grp.appendChild(o); });
     courtSel.appendChild(grp);
