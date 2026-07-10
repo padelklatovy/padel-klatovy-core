@@ -256,6 +256,10 @@
         <div class="field" style="flex:1;min-width:100px;margin:0;"><label>Do</label><select id="blockTo"></select></div>
         <button class="btn btn-dark" onclick="createBlock()">Zablokovat</button>
       </div>
+      <div class="checkbox-row" style="margin-bottom:0;">
+        <input type="checkbox" id="blockAsTournament" checked>
+        <div><div class="cb-title">Zobrazit i v Kalendáři jako turnaj</div><div class="cb-sub">Založí odpovídající akci v appce Kalendář (kategorie „Turnaj"), lidi ji uvidí tam i tady.</div></div>
+      </div>
     </div>
     <div class="section-title">Všechny rezervace</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
@@ -1187,14 +1191,30 @@ async function createBlock(){
   const court = findCourt(courtId);
   const from = parseFloat(document.getElementById('blockFrom').value);
   const to = parseFloat(document.getElementById('blockTo').value);
+  const asTournament = document.getElementById('blockAsTournament').checked;
   if(!name || to<=from){ toast('Vyplň název a platný časový rozsah'); return; }
+
+  let eventId = null;
+  if(asTournament){
+    const toTime = h => String(Math.floor(h)).padStart(2,'0') + ':' + String(Math.round((h-Math.floor(h))*60)).padStart(2,'0') + ':00';
+    const { data: ev, error: evErr } = await sb.from('events').insert({
+      name, category: 'turnaj', date: selectedDate, time_from: toTime(from), time_to: toTime(to),
+      location: `${court.locationName} · ${court.name}`, status: 'otevreno', visibility: 'verejne',
+      organizer: session.user.email
+    }).select().single();
+    if(evErr){ toast('Chyba při zakládání v Kalendáři: '+evErr.message); }
+    else eventId = ev.id;
+  }
+
   const { error } = await sb.from('reservations').insert({
     club_id: CLUB_ID, venue_id: venuesConfig[court.locationSlug].id, court_id: courtId,
     date: selectedDate, start_hour: from, duration_hours: to-from, end_hour: to,
-    type:'club_event', status:'club_blocked', event_name:name, created_by: session.user.email
+    type:'club_event', status:'club_blocked', event_name:name, created_by: session.user.email,
+    source_event_id: eventId
   });
   if(error){ toast('Chyba: '+error.message); return; }
-  document.getElementById('blockName').value=''; toast(`Blokace „${name}" vytvořena`);
+  document.getElementById('blockName').value='';
+  toast(asTournament && eventId ? `Turnaj „${name}" vytvořen — v Rezervacích i Kalendáři` : `Blokace „${name}" vytvořena`);
   await renderAll();
 }
 
