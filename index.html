@@ -305,6 +305,7 @@
     <button class="modal-close" onclick="closeModal('bookingOverlay')">×</button>
     <h2>Nová rezervace</h2>
     <p class="modal-sub" id="bookingSub"></p>
+    <div class="field"><label>Začátek</label><select id="startTimeSelect" onchange="onStartTimeChange()"></select></div>
     <div id="organizerFields"></div>
     <div class="duration-box">
       <div class="dlabel"><span>Délka</span><span id="durationValueLabel"></span></div>
@@ -630,6 +631,7 @@ function openBookingModal({courtId, startHour, maxDuration, adminMode}){
     paidNow: false
   };
   document.getElementById('bookingSub').textContent = `${loc.name} · ${court.name} · ${fmtDate(selectedDate)} · začátek ${formatHour(startHour)}`;
+  populateStartSelect();
 
   const orgBox = document.getElementById('organizerFields');
   if(adminMode){
@@ -656,12 +658,34 @@ function openBookingModal({courtId, startHour, maxDuration, adminMode}){
     <div class="checkbox-row"><input type="checkbox" id="paidNowCheck" onchange="booking.paidNow=this.checked">
       <div><div class="cb-title">Už zaplaceno (hotově / bar kredit)</div><div class="cb-sub">Jinak zůstane ve stavu „Čeká na platbu" s QR kódem.</div></div></div>` : '';
 
-  document.querySelector('.players-box .p-title').textContent = `Hráči (min. ${loc.minPlayers}, max. ${loc.maxPlayers}) — sleva se promítne do ceny`;
+  document.querySelector('.players-box .p-title').textContent = `Hráči se slevou (nepovinné, max. ${loc.maxPlayers} na kurtu)`;
 
   renderPlayersList();
   onDurationChange();
   document.getElementById('confirmBookingBtn').textContent = adminMode ? 'Vytvořit rezervaci' : 'Vytvořit rezervaci a zobrazit QR';
   showModal('bookingOverlay');
+}
+function getValidStarts(loc, courtId){
+  return slotStarts(loc).filter(s => computeMaxDuration(loc, courtId, s) >= loc.minDuration);
+}
+function populateStartSelect(){
+  const loc = booking.loc;
+  const starts = getValidStarts(loc, booking.courtId);
+  const sel = document.getElementById('startTimeSelect');
+  sel.innerHTML = starts.map(s=>`<option value="${s}" ${s===booking.startHour?'selected':''}>${formatHour(s)}</option>`).join('');
+}
+function onStartTimeChange(){
+  const newStart = parseFloat(document.getElementById('startTimeSelect').value);
+  const loc = booking.loc;
+  booking.startHour = newStart;
+  booking.maxDuration = computeMaxDuration(loc, booking.courtId, newStart);
+  booking.duration = loc.minDuration;
+  const slider = document.getElementById('durationSlider');
+  slider.min = loc.minDuration; slider.max = booking.maxDuration; slider.step = loc.slotStep; slider.value = loc.minDuration;
+  document.getElementById('durationNote').textContent = `Volno od ${formatHour(newStart)} max. do ${formatHour(newStart+booking.maxDuration)} (${booking.maxDuration} h k dispozici bez přerušení)`;
+  const court = loc.courts.find(c=>c.id===booking.courtId);
+  document.getElementById('bookingSub').textContent = `${loc.name} · ${court.name} · ${fmtDate(selectedDate)} · začátek ${formatHour(newStart)}`;
+  onDurationChange();
 }
 function syncOrganizer(){
   const name = document.getElementById('orgName').value.trim();
@@ -722,7 +746,6 @@ async function confirmBooking(){
     syncOrganizer();
   }
   if(booking.players.some(p=>!p.name || !p.name.trim())){ toast('Doplň jména všech hráčů, nebo je odeber'); return; }
-  if(booking.players.length < booking.loc.minPlayers){ toast(`Tohle hřiště vyžaduje minimálně ${booking.loc.minPlayers} hráče na rezervaci`); return; }
 
   const base = Math.round(booking.duration * booking.loc.priceHour);
   const discount = avgDiscount(booking.players);
