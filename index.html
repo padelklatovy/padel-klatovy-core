@@ -242,6 +242,10 @@
     <p class="page-sub" style="margin-top:-6px;">Skutečná tabulka <code>member_profiles</code>. Slevu edituje jen admin zde.</p>
     <div class="field" style="max-width:320px;"><input id="memberSearch" placeholder="Začněte psát jméno..." oninput="renderMembers()"></div>
     <table class="admin-table" id="membersTable" style="margin-top:12px;"></table>
+    <div class="section-title">Opakované rezervace (série)</div>
+    <p class="page-sub" style="margin-top:-6px;">Pravidelné skupiny — zrušíš celou sérii jedním tlačítkem, ne termín po termínu.</p>
+    <table class="admin-table" id="seriesTable"></table>
+
     <div class="section-title">Hromadná blokace (víc hodin najednou)</div>
     <p class="page-sub" style="margin-top:-6px;">Pro jednu rezervaci nebo krátkou blokaci stačí kliknout přímo do gridu v Rezervacích. Tohle je pro turnaj/akci přes víc hodin.</p>
     <div class="card" style="display:block;">
@@ -319,6 +323,17 @@
       <div class="p-title">Hráči (sleva se promítne do ceny)</div>
       <div id="playersList"></div>
       <button class="add-player-btn" id="addPlayerBtn" onclick="addPlayerRow()">+ Přidat spoluhráče</button>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="repeatCheck" onchange="onRepeatToggle(this.checked)">
+      <div style="flex:1;">
+        <div class="cb-title">Opakovat každý týden</div>
+        <div class="cb-sub">Pro pravidelné skupiny (trénink, liga). Vytvoří sérii rezervací, kterou pak smažeš jedním tlačítkem.</div>
+        <div id="repeatBox" style="display:none;margin-top:10px;">
+          <div class="field" style="margin-bottom:8px;"><label style="font-size:12px;">Název série</label><input id="seriesName" placeholder="např. Čtvrteční skupina Novákovi"></div>
+          <div class="field" style="margin-bottom:0;"><label style="font-size:12px;">Opakovat do (včetně)</label><input type="date" id="seriesUntil"></div>
+        </div>
+      </div>
     </div>
     <div class="checkbox-row">
       <input type="checkbox" id="openMatchCheck" onchange="document.getElementById('openMatchLevelBox').style.display=this.checked?'block':'none'">
@@ -649,8 +664,17 @@ function openBookingModal({courtId, startHour, adminMode}){
   }
 
   document.getElementById('openMatchCheck').checked = false;
+  document.getElementById('openMatchCheck').disabled = false;
   document.getElementById('openMatchLevelBox').style.display = 'none';
   populateLevelSelect('openMatchLevel', profile ? profile.level : 'C2');
+
+  document.getElementById('repeatCheck').checked = false;
+  document.getElementById('repeatBox').style.display = 'none';
+  document.getElementById('seriesName').value = '';
+  const untilDefault = new Date(selectedDate+'T00:00:00'); untilDefault.setDate(untilDefault.getDate()+84);
+  const minUntil = new Date(selectedDate+'T00:00:00'); minUntil.setDate(minUntil.getDate()+7);
+  document.getElementById('seriesUntil').value = untilDefault.toISOString().slice(0,10);
+  document.getElementById('seriesUntil').min = minUntil.toISOString().slice(0,10);
 
   document.getElementById('paidToggleBox').innerHTML = adminMode ? `
     <div class="checkbox-row"><input type="checkbox" id="paidNowCheck" onchange="booking.paidNow=this.checked">
@@ -715,6 +739,12 @@ function updateDurationSummary(){
   document.getElementById('durationNote').textContent = `${formatHour(booking.startHour)}–${formatHour(booking.startHour+booking.duration)}`;
   updatePriceBox();
 }
+function onRepeatToggle(checked){
+  document.getElementById('repeatBox').style.display = checked ? 'block' : 'none';
+  const omCheck = document.getElementById('openMatchCheck');
+  omCheck.disabled = checked;
+  if(checked){ omCheck.checked = false; document.getElementById('openMatchLevelBox').style.display = 'none'; }
+}
 function syncOrganizer(){
   const name = document.getElementById('orgName').value.trim();
   const discount = parseInt(document.getElementById('orgDiscount').value,10);
@@ -768,26 +798,39 @@ async function confirmBooking(){
   }
   if(booking.players.some(p=>!p.name || !p.name.trim())){ toast('Doplň jména všech hráčů, nebo je odeber'); return; }
 
+  const isRepeat = document.getElementById('repeatCheck').checked;
+  if(isRepeat) await confirmBookingRecurring();
+  else await confirmBookingSingle();
+}
+
+function buildBasePayload(date){
   const base = Math.round(booking.duration * booking.loc.priceHour);
   const discount = avgDiscount(booking.players);
   const amount = Math.round(base * (1 - discount/100));
   const paidNow = booking.adminMode && booking.paidNow;
   const organizer = booking.players.find(p=>p.isOrganizer) || booking.players[0];
-  const isOpenMatch = document.getElementById('openMatchCheck').checked;
-
-  const payload = {
-    club_id: CLUB_ID, venue_id: booking.loc.id, court_id: booking.courtId,
-    member_id: booking.adminMode ? null : profile.user_id,
-    organizer_name: organizer.name,
-    organizer_phone: booking.adminMode ? (document.getElementById('orgPhone').value||'') : profile.phone,
-    date: selectedDate, start_hour: booking.startHour, duration_hours: booking.duration, end_hour: booking.startHour + booking.duration,
-    type: 'member_booking',
-    status: (amount===0 || paidNow) ? 'paid_confirmed' : 'pending_payment',
-    base_price: base, discount_applied: discount, amount_due: amount,
-    players: booking.players, is_open_match: isOpenMatch,
-    created_by: booking.adminMode ? (session.user.email) : null,
-    paid_at: (amount===0 || paidNow) ? new Date().toISOString() : null
+  return {
+    payload: {
+      club_id: CLUB_ID, venue_id: booking.loc.id, court_id: booking.courtId,
+      member_id: booking.adminMode ? null : profile.user_id,
+      organizer_name: organizer.name,
+      organizer_phone: booking.adminMode ? (document.getElementById('orgPhone').value||'') : profile.phone,
+      date, start_hour: booking.startHour, duration_hours: booking.duration, end_hour: booking.startHour + booking.duration,
+      type: 'member_booking',
+      status: (amount===0 || paidNow) ? 'paid_confirmed' : 'pending_payment',
+      base_price: base, discount_applied: discount, amount_due: amount,
+      players: booking.players, is_open_match: false,
+      created_by: booking.adminMode ? (session.user.email) : null,
+      paid_at: (amount===0 || paidNow) ? new Date().toISOString() : null
+    },
+    amount, paidNow
   };
+}
+
+async function confirmBookingSingle(){
+  const isOpenMatch = document.getElementById('openMatchCheck').checked;
+  const { payload, amount } = buildBasePayload(selectedDate);
+  payload.is_open_match = isOpenMatch;
 
   const { data: reservation, error } = await sb.from('reservations').insert(payload).select().single();
   if(error){ toast('Chyba: ' + error.message); return; }
@@ -817,6 +860,56 @@ async function confirmBooking(){
   } else {
     activeReservationId = reservation.id;
     await openPaymentModalFor(reservation, payment);
+  }
+  await renderGrid();
+}
+
+async function confirmBookingRecurring(){
+  const untilStr = document.getElementById('seriesUntil').value;
+  if(!untilStr){ toast('Vyber datum, do kdy se má opakovat'); return; }
+  const seriesName = (document.getElementById('seriesName').value || '').trim() || 'Pravidelná rezervace';
+
+  const dates = [];
+  let d = new Date(selectedDate+'T00:00:00');
+  const until = new Date(untilStr+'T00:00:00');
+  while(d <= until){ dates.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+7); }
+  if(dates.length < 2){ toast('Vyber datum aspoň o týden později'); return; }
+  if(dates.length > 60){ toast('Max. 60 opakování najednou (bezpečnostní pojistka)'); return; }
+
+  const { data: existing } = await sb.from('reservations').select('date,start_hour,end_hour,status')
+    .eq('court_id', booking.courtId).in('date', dates);
+  const blocked = new Set((existing||[]).filter(r=>!['cancelled_by_user','cancelled_by_admin'].includes(r.status))
+    .filter(r => booking.startHour < r.end_hour && (booking.startHour+booking.duration) > r.start_hour)
+    .map(r=>r.date));
+
+  const okDates = dates.filter(dt => !blocked.has(dt));
+  if(!okDates.length){ toast('Všechny termíny série jsou obsazené'); return; }
+
+  const seriesId = crypto.randomUUID();
+  const rows = okDates.map(dt => {
+    const { payload } = buildBasePayload(dt);
+    payload.series_id = seriesId;
+    payload.series_name = seriesName;
+    return payload;
+  });
+
+  const { data: inserted, error } = await sb.from('reservations').insert(rows).select();
+  if(error){ toast('Chyba: ' + error.message); return; }
+
+  const pendingOnes = inserted.filter(r=>r.status==='pending_payment');
+  if(pendingOnes.length){
+    await sb.from('payments').insert(pendingOnes.map(r=>({
+      club_id: CLUB_ID, reservation_id: r.id, amount: r.amount_due, variable_symbol: genVS(), status:'created'
+    })));
+  }
+
+  closeModal('bookingOverlay');
+  const skippedNote = blocked.size ? ` (${blocked.size} termínů přeskočeno — obsazeno)` : '';
+  toast(`Série „${seriesName}" vytvořena: ${okDates.length} termínů${skippedNote}`);
+
+  if(pendingOnes.length){
+    activeReservationId = pendingOnes[0].id;
+    await openPaymentModalFor(pendingOnes[0]);
   }
   await renderGrid();
 }
@@ -856,7 +949,32 @@ async function renderMine(){
   const { data, error } = await sb.from('reservations').select('*').eq('member_id', profile.user_id).order('date',{ascending:false});
   if(error){ el.innerHTML = emptyState('Chyba', error.message); return; }
   if(!data.length){ el.innerHTML = emptyState('Zatím žádné rezervace', 'Vyber si hřiště v Rezervacích.'); return; }
-  el.innerHTML = data.map(r => {
+
+  const single = data.filter(r=>!r.series_id);
+  const seriesGroups = {};
+  data.filter(r=>r.series_id).forEach(r=>{
+    if(!seriesGroups[r.series_id]) seriesGroups[r.series_id] = [];
+    seriesGroups[r.series_id].push(r);
+  });
+
+  const seriesCards = Object.keys(seriesGroups).map(sid=>{
+    const items = seriesGroups[sid];
+    const active = items.filter(r=>!['cancelled_by_user','cancelled_by_admin'].includes(r.status));
+    if(!active.length) return '';
+    const court = findCourt(active[0].court_id);
+    const dates = active.map(i=>i.date).sort();
+    const unpaidCount = active.filter(r=>r.status==='pending_payment').length;
+    const firstUnpaid = active.find(r=>r.status==='pending_payment');
+    return `<div class="card"><div class="info">
+        <b>🔁 ${active[0].series_name} · ${court.locationName} · ${court.name}</b>
+        <div class="meta">${active.length} termínů · ${dates[0]} – ${dates[dates.length-1]} · ${formatHour(active[0].start_hour)}–${formatHour(active[0].end_hour)}${unpaidCount?` · ${unpaidCount}× čeká na platbu`:''}</div>
+      </div><div class="actions">
+        ${firstUnpaid ? `<button class="btn btn-sm btn-ghost" onclick='openPaymentModalFor(${JSON.stringify(firstUnpaid)})'>Zaplatit další</button>` : `<span class="status-pill paid">Vše zaplaceno</span>`}
+        <button class="btn btn-sm btn-ghost" onclick="cancelSeries('${sid}')">Zrušit celou sérii</button>
+      </div></div>`;
+  }).join('');
+
+  const singleCards = single.map(r => {
     const court = findCourt(r.court_id);
     const statusHtml = r.status==='paid_confirmed' ? `<span class="status-pill paid">Zaplaceno</span>` : (r.status==='pending_payment' ? `<span class="status-pill pending">Čeká na platbu</span>` : `<span class="status-pill blocked">${r.status}</span>`);
     const playersNote = r.players && r.players.length>1 ? ` · ${r.players.length} hráči` : '';
@@ -869,6 +987,8 @@ async function renderMine(){
         ${['pending_payment','paid_confirmed'].includes(r.status) ? `<button class="btn btn-sm btn-ghost" onclick="cancelReservation('${r.id}')">Zrušit</button>` : ''}
       </div></div>`;
   }).join('');
+
+  el.innerHTML = seriesCards + singleCards || emptyState('Zatím žádné aktivní rezervace', 'Vyber si hřiště v Rezervacích.');
 }
 async function cancelReservation(id){
   const status = isAdmin() ? 'cancelled_by_admin' : 'cancelled_by_user';
@@ -1015,6 +1135,7 @@ async function renderAdmin(){
   ` : `<tr><td style="padding:16px;color:#948e83;">Žádné nezaplacené rezervace 🎉</td></tr>`;
 
   renderAdminTable();
+  renderSeriesAdmin();
   await renderMembers();
 
   const courtSel = document.getElementById('blockCourt');
@@ -1148,6 +1269,36 @@ async function updateMemberRole(userId, value){
   const { error } = await sb.from('member_profiles').update({role: value}).eq('user_id', userId);
   if(error){ toast('Chyba: '+error.message); return; }
   toast('Role upravena'); await renderMembers(); renderHeader();
+}
+
+function renderSeriesAdmin(){
+  const table = document.getElementById('seriesTable'); if(!table) return;
+  const active = adminReservationsCache.filter(r=>r.series_id && !['cancelled_by_user','cancelled_by_admin'].includes(r.status));
+  const groups = {};
+  active.forEach(r=>{
+    if(!groups[r.series_id]) groups[r.series_id] = { name: r.series_name, courtId: r.court_id, items: [] };
+    groups[r.series_id].items.push(r);
+  });
+  const list = Object.keys(groups).map(id=>({id, ...groups[id]}));
+  table.innerHTML = list.length ? `
+    <tr><th>Název série</th><th>Hřiště / kurt</th><th>Termínů</th><th>Od–do</th><th>Organizátor</th><th></th></tr>
+    ${list.map(g=>{
+      const court = findCourt(g.courtId);
+      const dates = g.items.map(i=>i.date).sort();
+      return `<tr>
+        <td><b>${g.name}</b></td><td>${court.locationName} · ${court.name}</td><td>${g.items.length}</td>
+        <td>${dates[0]} – ${dates[dates.length-1]}</td><td>${g.items[0].organizer_name}</td>
+        <td><button class="btn btn-sm btn-ghost" onclick="cancelSeries('${g.id}')">Zrušit celou sérii</button></td>
+      </tr>`;
+    }).join('')}
+  ` : `<tr><td style="padding:16px;color:#948e83;">Zatím žádné aktivní série</td></tr>`;
+}
+async function cancelSeries(seriesId){
+  const status = isAdmin() ? 'cancelled_by_admin' : 'cancelled_by_user';
+  const { error } = await sb.from('reservations').update({status}).eq('series_id', seriesId).not('status','in','(cancelled_by_user,cancelled_by_admin)');
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Celá série zrušena');
+  await renderAll();
 }
 
 /* ================= HELPERS ================= */
