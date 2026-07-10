@@ -671,6 +671,7 @@ function openBookingModal({courtId, startHour, adminMode}){
   const orgBox = document.getElementById('organizerFields');
   if(adminMode){
     orgBox.innerHTML = `
+      <button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:10px;" onclick="fillMyOwnDetails()">Rezervuji pro sebe — vyplnit moje údaje</button>
       <div class="field"><label>Organizátor — jméno</label><input id="orgName" placeholder="Jana Nováková" oninput="syncOrganizer()"></div>
       <div class="field"><label>Telefon (volitelné)</label><input id="orgPhone" placeholder="+420 600 000 000"></div>
       <div class="field"><label>Sleva organizátora</label>
@@ -761,6 +762,12 @@ function onRepeatToggle(checked){
   const omCheck = document.getElementById('openMatchCheck');
   omCheck.disabled = checked;
   if(checked){ omCheck.checked = false; document.getElementById('openMatchLevelBox').style.display = 'none'; }
+}
+function fillMyOwnDetails(){
+  document.getElementById('orgName').value = profile.full_name;
+  document.getElementById('orgPhone').value = profile.phone;
+  document.getElementById('orgDiscount').value = String(profile.discount_percent);
+  syncOrganizer();
 }
 function syncOrganizer(){
   const name = document.getElementById('orgName').value.trim();
