@@ -250,6 +250,24 @@
     <p class="page-sub" style="margin-top:-6px;">Skutečná tabulka <code>member_profiles</code>. Slevu edituje jen admin zde.</p>
     <div class="field" style="max-width:320px;"><input id="memberSearch" placeholder="Začněte psát jméno..." oninput="renderMembers()"></div>
     <table class="admin-table" id="membersTable" style="margin-top:12px;"></table>
+
+    <div class="section-title">Předplacená členství</div>
+    <p class="page-sub" style="margin-top:-6px;">Někdo zaplatil členství mimo appku (hotově, převodem)? Zapiš jeho e-mail sem — až se v appce zaregistruje, automaticky dostane správnou slevu.</p>
+    <div class="card" style="display:block;">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="field" style="flex:2;min-width:200px;margin:0;"><label>E-mail</label><input id="pendingEmail" placeholder="jana@example.com" type="email"></div>
+        <div class="field" style="flex:1;min-width:160px;margin:0;"><label>Jméno (volitelné)</label><input id="pendingName" placeholder="Jana Nováková"></div>
+        <div class="field" style="flex:1;min-width:140px;margin:0;"><label>Úroveň</label>
+          <select id="pendingTier">
+            <option value="clen">Člen — 20 % sleva</option>
+            <option value="trener">Trenér — 100 % (zdarma)</option>
+          </select>
+        </div>
+        <button class="btn btn-dark" onclick="addPendingMembership()">Přidat</button>
+      </div>
+    </div>
+    <table class="admin-table" id="pendingMembershipsTable" style="margin-top:12px;"></table>
+
     <div class="section-title">Opakované rezervace (série)</div>
     <p class="page-sub" style="margin-top:-6px;">Pravidelné skupiny — zrušíš celou sérii jedním tlačítkem, ne termín po termínu.</p>
     <table class="admin-table" id="seriesTable"></table>
@@ -1226,6 +1244,7 @@ async function renderAdmin(){
   renderAdminTable();
   renderSeriesAdmin();
   await renderMembers();
+  await renderPendingMemberships();
 
   const courtSel = document.getElementById('blockCourt');
   courtSel.innerHTML = '';
@@ -1403,6 +1422,44 @@ async function cancelSeries(seriesId){
   if(error){ toast('Chyba: '+error.message); return; }
   toast('Celá série zrušena');
   await renderAll();
+}
+
+async function renderPendingMemberships(){
+  const table = document.getElementById('pendingMembershipsTable'); if(!table) return;
+  const { data, error } = await sb.from('pending_memberships').select('*').is('claimed_at', null).order('created_at',{ascending:false});
+  if(error){ toast('Chyba: '+error.message); return; }
+  const tierLabel = {clen:'Člen (20 %)', trener:'Trenér (100 %)'};
+  table.innerHTML = data.length ? `
+    <tr><th>E-mail</th><th>Jméno</th><th>Úroveň</th><th>Přidáno</th><th></th></tr>
+    ${data.map(p=>`<tr>
+      <td>${p.email}</td><td>${p.full_name||'—'}</td><td>${tierLabel[p.membership_tier]||p.membership_tier}</td>
+      <td>${new Date(p.created_at).toLocaleDateString('cs-CZ')}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="removePendingMembership('${p.id}')">Zrušit</button></td>
+    </tr>`).join('')}
+  ` : `<tr><td style="padding:16px;color:#948e83;">Žádná čekající předplacená členství</td></tr>`;
+}
+async function addPendingMembership(){
+  const email = document.getElementById('pendingEmail').value.trim().toLowerCase();
+  const full_name = document.getElementById('pendingName').value.trim();
+  const tier = document.getElementById('pendingTier').value;
+  if(!email || !email.includes('@')){ toast('Zadej platný e-mail'); return; }
+  const discount = {clen:20, trener:100}[tier];
+  const { error } = await sb.from('pending_memberships').insert({
+    club_id: CLUB_ID, email, full_name: full_name || null, membership_tier: tier, discount_percent: discount, created_by: session.user.email
+  });
+  if(error){
+    toast(error.message.includes('duplicate') || error.code==='23505' ? 'Pro tenhle e-mail už čekající členství existuje' : 'Chyba: '+error.message);
+    return;
+  }
+  document.getElementById('pendingEmail').value=''; document.getElementById('pendingName').value='';
+  toast(`Předplacené členství pro ${email} přidáno`);
+  await renderPendingMemberships();
+}
+async function removePendingMembership(id){
+  const { error } = await sb.from('pending_memberships').delete().eq('id', id);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Zrušeno');
+  await renderPendingMemberships();
 }
 
 /* ================= HELPERS ================= */
