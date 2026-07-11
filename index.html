@@ -343,7 +343,8 @@
         <div class="cb-sub">Pro pravidelné skupiny (trénink, liga). Vytvoří sérii rezervací, kterou pak smažeš jedním tlačítkem.</div>
         <div id="repeatBox" style="display:none;margin-top:10px;">
           <div class="field" style="margin-bottom:8px;"><label style="font-size:12px;">Název série</label><input id="seriesName" placeholder="např. Čtvrteční skupina Novákovi"></div>
-          <div class="field" style="margin-bottom:0;"><label style="font-size:12px;">Opakovat do (včetně)</label><input type="date" id="seriesUntil"></div>
+          <div class="field" style="margin-bottom:0;"><label style="font-size:12px;">Opakovat do (včetně)</label><input type="date" id="seriesUntil" onchange="updateSeriesSummary()"></div>
+          <div id="seriesSummary" style="font-size:12px;color:#767066;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);"></div>
         </div>
       </div>
     </div>
@@ -765,7 +766,22 @@ function onRepeatToggle(checked){
   document.getElementById('repeatBox').style.display = checked ? 'block' : 'none';
   const omCheck = document.getElementById('openMatchCheck');
   omCheck.disabled = checked;
-  if(checked){ omCheck.checked = false; document.getElementById('openMatchLevelBox').style.display = 'none'; }
+  if(checked){ omCheck.checked = false; document.getElementById('openMatchLevelBox').style.display = 'none'; updateSeriesSummary(); }
+}
+function updateSeriesSummary(){
+  const summaryEl = document.getElementById('seriesSummary');
+  if(!document.getElementById('repeatCheck').checked || !summaryEl) return;
+  const untilStr = document.getElementById('seriesUntil').value;
+  if(!untilStr){ summaryEl.textContent = ''; return; }
+  let count = 0;
+  let d = new Date(selectedDate+'T00:00:00');
+  const until = new Date(untilStr+'T00:00:00');
+  while(d <= until){ count++; d.setDate(d.getDate()+7); }
+  const base = Math.round(booking.duration * booking.loc.priceHour);
+  const discount = avgDiscount(booking.players.length ? booking.players : [{discount:0}]);
+  const perOccurrence = Math.round(base * (1 - discount/100));
+  const total = perOccurrence * count;
+  summaryEl.innerHTML = `<b>${count}× termín</b> po ${perOccurrence} Kč = <b>${total} Kč celkem za sérii</b><br>Neplatí se ale najednou — každý termín má vlastní QR platbu (najdeš postupně v „Moje rezervace").`;
 }
 function fillMyOwnDetails(){
   document.getElementById('orgName').value = profile.full_name;
@@ -816,6 +832,7 @@ function updatePriceBox(){
     document.getElementById('discountLabel').innerHTML = `<span class="badge-discount">−${discount} %</span>`;
   } else { document.getElementById('discountRow').style.display='none'; }
   document.getElementById('totalPriceLabel').textContent = total + ' Kč';
+  updateSeriesSummary();
 }
 
 async function confirmBooking(){
@@ -925,10 +942,23 @@ async function confirmBookingRecurring(){
   if(error){ toast('Chyba: ' + error.message); return; }
 
   const pendingOnes = inserted.filter(r=>r.status==='pending_payment');
+  let anchorPayment = null;
+
   if(pendingOnes.length){
-    await sb.from('payments').insert(pendingOnes.map(r=>({
-      club_id: CLUB_ID, reservation_id: r.id, amount: r.amount_due, variable_symbol: genVS(), status:'created'
-    })));
+    if(booking.adminMode){
+      // Admin: rezervace na jednotlivé skupiny — každý termín může admin potvrdit/zrušit zvlášť v Adminu.
+      await sb.from('payments').insert(pendingOnes.map(r=>({
+        club_id: CLUB_ID, reservation_id: r.id, amount: r.amount_due, variable_symbol: genVS(), status:'created'
+      })));
+    } else {
+      // Hráč sám: JEDNA platba za CELOU sérii najednou — jinak by mohl přestat platit
+      // po pár termínech a kurt by zůstal blokovaný bez závazku.
+      const totalAmount = pendingOnes.reduce((s,r)=>s+Number(r.amount_due||0),0);
+      const { data: p } = await sb.from('payments').insert({
+        club_id: CLUB_ID, reservation_id: pendingOnes[0].id, amount: totalAmount, variable_symbol: genVS(), status:'created'
+      }).select().single();
+      anchorPayment = p;
+    }
   }
 
   closeModal('bookingOverlay');
@@ -937,7 +967,11 @@ async function confirmBookingRecurring(){
 
   if(pendingOnes.length){
     activeReservationId = pendingOnes[0].id;
-    await openPaymentModalFor(pendingOnes[0]);
+    if(booking.adminMode){
+      await openPaymentModalFor(pendingOnes[0]);
+    } else {
+      await openPaymentModalFor({...pendingOnes[0], amount_due: anchorPayment.amount}, anchorPayment);
+    }
   }
   await renderGrid();
 }
@@ -947,10 +981,20 @@ async function openPaymentModalFor(reservation, payment){
   if(!payment){
     const { data: p } = await sb.from('payments').select('*').eq('reservation_id', reservation.id).maybeSingle();
     payment = p;
+    if(!payment && reservation.series_id){
+      // Platba mohla být uložená jen u prvního termínu série — dohledej ji přes sourozence.
+      const { data: siblings } = await sb.from('reservations').select('id').eq('series_id', reservation.series_id);
+      const ids = (siblings||[]).map(s=>s.id);
+      if(ids.length){
+        const { data: p2 } = await sb.from('payments').select('*').in('reservation_id', ids).limit(1).maybeSingle();
+        payment = p2;
+      }
+    }
   }
   const qr = document.getElementById('qrVisual');
   qr.innerHTML = genQR().map(on => `<div class="${on?'':'off'}"></div>`).join('');
-  document.getElementById('qrMeta').innerHTML = `Účet: <b>123456789/2010</b> · Částka: <b>${reservation.amount_due} Kč</b><br>VS: <b>${payment ? payment.variable_symbol : '—'}</b> · Zpráva: <b>Rezervace kurtu ${reservation.date} ${formatHour(reservation.start_hour)}</b>`;
+  const seriesNote = reservation.series_id ? `<br><b>Platba za celou sérii „${reservation.series_name}"</b>` : '';
+  document.getElementById('qrMeta').innerHTML = `Účet: <b>123456789/2010</b> · Částka: <b>${payment ? payment.amount : reservation.amount_due} Kč</b><br>VS: <b>${payment ? payment.variable_symbol : '—'}</b> · Zpráva: <b>Rezervace kurtu ${reservation.date} ${formatHour(reservation.start_hour)}</b>${seriesNote}`;
   renderPaymentStatus(reservation);
   activeReservationId = reservation.id;
   showModal('paymentOverlay');
@@ -960,12 +1004,26 @@ function renderPaymentStatus(reservation){
   if(reservation.status === 'paid_confirmed'){ box.innerHTML = `<span class="status-pill paid">✓ Zaplaceno</span>`; btn.style.display='none'; }
   else { box.innerHTML = `<span class="status-pill pending">Čeká na platbu</span>`; btn.style.display=''; }
 }
+async function confirmPaymentCascade(reservationId, confirmedBy){
+  const { data: res, error } = await sb.from('reservations').select('*').eq('id', reservationId).single();
+  if(error || !res) return null;
+  if(res.series_id){
+    const { data: siblings } = await sb.from('reservations').select('id').eq('series_id', res.series_id);
+    const ids = (siblings||[]).map(s=>s.id);
+    await sb.from('reservations').update({status:'paid_confirmed', paid_at:new Date().toISOString()})
+      .eq('series_id', res.series_id).eq('status','pending_payment');
+    if(ids.length) await sb.from('payments').update({status:'manually_confirmed', paid_at:new Date().toISOString(), confirmed_by:confirmedBy}).in('reservation_id', ids);
+  } else {
+    await sb.from('reservations').update({status:'paid_confirmed', paid_at:new Date().toISOString()}).eq('id', reservationId);
+    await sb.from('payments').update({status:'manually_confirmed', paid_at:new Date().toISOString(), confirmed_by:confirmedBy}).eq('reservation_id', reservationId);
+  }
+  return res;
+}
 async function simulatePayment(){
-  const { data: reservation, error } = await sb.from('reservations').update({ status:'paid_confirmed', paid_at: new Date().toISOString() }).eq('id', activeReservationId).select().single();
-  if(error){ toast('Chyba: ' + error.message); return; }
-  await sb.from('payments').update({ status:'manually_confirmed', paid_at: new Date().toISOString(), confirmed_by:'demo_simulace' }).eq('reservation_id', activeReservationId);
-  renderPaymentStatus(reservation);
-  toast('Platba potvrzena (simulace) — rezervace je pevná');
+  const res = await confirmPaymentCascade(activeReservationId, 'demo_simulace');
+  if(!res){ toast('Chyba při potvrzování platby'); return; }
+  renderPaymentStatus({...res, status:'paid_confirmed'});
+  toast(res.series_id ? 'Platba potvrzena — celá série je pevná' : 'Platba potvrzena (simulace) — rezervace je pevná');
   await renderGrid();
 }
 
@@ -997,7 +1055,7 @@ async function renderMine(){
         <b>🔁 ${active[0].series_name} · ${court.locationName} · ${court.name}</b>
         <div class="meta">${active.length} termínů · ${dates[0]} – ${dates[dates.length-1]} · ${formatHour(active[0].start_hour)}–${formatHour(active[0].end_hour)}${unpaidCount?` · ${unpaidCount}× čeká na platbu`:''}</div>
       </div><div class="actions">
-        ${firstUnpaid ? `<button class="btn btn-sm btn-ghost" onclick='openPaymentModalFor(${JSON.stringify(firstUnpaid)})'>Zaplatit další</button>` : `<span class="status-pill paid">Vše zaplaceno</span>`}
+        ${firstUnpaid ? `<button class="btn btn-sm btn-ghost" onclick='openPaymentModalFor(${JSON.stringify(firstUnpaid)})'>Zaplatit celou sérii (${active.filter(r=>r.status==='pending_payment').reduce((s,r)=>s+Number(r.amount_due||0),0)} Kč)</button>` : `<span class="status-pill paid">Vše zaplaceno</span>`}
         <button class="btn btn-sm btn-ghost" onclick="cancelSeries('${sid}')">Zrušit celou sérii</button>
       </div></div>`;
   }).join('');
@@ -1204,10 +1262,9 @@ function renderAdminTable(){
   ` : `<tr><td style="padding:16px;color:#948e83;">Žádné rezervace pro tenhle filtr</td></tr>`;
 }
 async function adminConfirm(id){
-  const { error } = await sb.from('reservations').update({status:'paid_confirmed', paid_at:new Date().toISOString()}).eq('id', id);
-  if(error){ toast('Chyba: '+error.message); return; }
-  await sb.from('payments').update({status:'manually_confirmed', confirmed_by: session.user.email, paid_at:new Date().toISOString()}).eq('reservation_id', id);
-  toast('Rezervace ručně potvrzena');
+  const res = await confirmPaymentCascade(id, session.user.email);
+  if(!res){ toast('Chyba při potvrzování platby'); return; }
+  toast(res.series_id ? 'Celá série ručně potvrzena' : 'Rezervace ručně potvrzena');
   await renderAll();
 }
 async function createBlock(){
