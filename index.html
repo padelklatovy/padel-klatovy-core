@@ -719,7 +719,8 @@ function openBookingModal({courtId, startHour, adminMode}){
 
   document.getElementById('paidToggleBox').innerHTML = adminMode ? `
     <div class="checkbox-row"><input type="checkbox" id="paidNowCheck" onchange="booking.paidNow=this.checked">
-      <div><div class="cb-title">Už zaplaceno (hotově / bar kredit)</div><div class="cb-sub">Jinak zůstane ve stavu „Čeká na platbu" s QR kódem.</div></div></div>` : '';
+      <div><div class="cb-title">Už zaplaceno (hotově / bar kredit)</div><div class="cb-sub">Jinak zůstane ve stavu „Čeká na platbu" s QR kódem.</div></div></div>
+    <div class="field"><label>Poznámka (nepovinné)</label><input id="adminNote" placeholder="např. MultiSport — 2 karty, zdarma"></div>` : '';
 
   document.querySelector('.players-box .p-title').textContent = `Hráči se slevou (nepovinné, max. ${loc.maxPlayers} na kurtu)`;
 
@@ -886,7 +887,8 @@ function buildBasePayload(date){
       base_price: base, discount_applied: discount, amount_due: amount,
       players: booking.players, is_open_match: false,
       created_by: booking.adminMode ? (session.user.email) : null,
-      paid_at: (amount===0 || paidNow) ? new Date().toISOString() : null
+      paid_at: (amount===0 || paidNow) ? new Date().toISOString() : null,
+      admin_note: booking.adminMode ? (document.getElementById('adminNote')?.value.trim() || null) : null
     },
     amount, paidNow
   };
@@ -1170,12 +1172,22 @@ function openAdminSlotModal(courtId, hour, existing){
         <div class="price-row"><span>Kdo / co</span><span><b>${who}</b></span></div>
         <div class="price-row"><span>Čas</span><span>${formatHour(existing.start_hour)}–${formatHour(existing.end_hour)}</span></div>
         <div class="price-row"><span>Stav</span><span>${statusLabel}</span></div>
+        ${existing.admin_note ? `<div class="price-row"><span>Poznámka</span><span>${existing.admin_note}</span></div>` : ''}
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label>${existing.admin_note ? 'Upravit poznámku' : 'Přidat poznámku'} (např. MultiSport — vráceno hotově)</label>
+        <div style="display:flex;gap:8px;">
+          <input id="editNoteInput" value="${existing.admin_note || ''}" style="flex:1;">
+          <button class="btn btn-sm btn-dark" onclick="updateReservationNote('${existing.id}')">Uložit</button>
+        </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
         ${existing.status==='pending_payment' ? `<button class="btn btn-green" onclick="adminConfirm('${existing.id}');closeModal('adminSlotOverlay')">Potvrdit platbu ručně</button>` : ''}
+        <button class="btn btn-dark" onclick="openEditReservation('${existing.id}')">Upravit termín (čas / délku)</button>
         <button class="btn btn-ghost" onclick="cancelReservation('${existing.id}');closeModal('adminSlotOverlay')">Zrušit jen tento termín</button>
         ${existing.series_id ? `<button class="btn btn-ghost" style="color:var(--red-deep);border-color:var(--red-deep);" onclick="cancelSeries('${existing.series_id}');closeModal('adminSlotOverlay')">Zrušit celou sérii „${existing.series_name}"</button>` : ''}
-      </div>`;
+      </div>
+      <div id="editReservationBox" style="display:none;margin-top:16px;padding-top:16px;border-top:1px dashed var(--line);"></div>`;
     showModal('adminSlotOverlay'); return;
   }
   const maxDur = computeMaxDuration(loc, courtId, hour);
@@ -1188,6 +1200,105 @@ function openAdminSlotModal(courtId, hour, existing){
     <div id="adminSlotSubForm"></div>`;
   showModal('adminSlotOverlay');
 }
+/* ================= ADMIN: ÚPRAVA EXISTUJÍCÍ REZERVACE ================= */
+let editState = null;
+function openEditReservation(id){
+  const existing = gridReservations.find(r=>r.id===id) || adminReservationsCache.find(r=>r.id===id);
+  if(!existing){ toast('Rezervaci se nepodařilo najít'); return; }
+  const loc = activeLoc();
+  editState = { id, loc, courtId: existing.court_id, date: existing.date, startHour: existing.start_hour, duration: existing.duration_hours, discount: existing.discount_applied || 0 };
+
+  const box = document.getElementById('editReservationBox');
+  box.style.display = 'block';
+  box.innerHTML = `
+    <div class="field"><label>Kurt</label><select id="editCourtSelect" onchange="onEditFieldChange()"></select></div>
+    <div class="field"><label>Datum</label><input type="date" id="editDateInput" value="${existing.date}" onchange="onEditFieldChange()"></div>
+    <div style="display:flex;gap:10px;">
+      <div class="field" style="flex:1;"><label>Začátek</label><select id="editStartSelect" onchange="onEditStartChange()"></select></div>
+      <div class="field" style="flex:1;"><label>Konec</label><select id="editEndSelect" onchange="onEditEndChange()"></select></div>
+    </div>
+    <div class="price-box" id="editPriceSummary" style="margin-top:0;"></div>
+    <button class="btn btn-primary" style="width:100%;" onclick="saveEditedReservation()">Uložit změny</button>
+  `;
+  const courtSel = document.getElementById('editCourtSelect');
+  courtSel.innerHTML = loc.courts.map(c=>`<option value="${c.id}" ${c.id===editState.courtId?'selected':''}>${c.name}</option>`).join('');
+  populateEditStarts();
+}
+async function onEditFieldChange(){
+  editState.courtId = document.getElementById('editCourtSelect').value;
+  editState.date = document.getElementById('editDateInput').value;
+  await populateEditStarts();
+}
+async function getValidStartsForEdit(){
+  const loc = editState.loc;
+  const { data } = await sb.from('reservations').select('id,start_hour,end_hour,status')
+    .eq('court_id', editState.courtId).eq('date', editState.date).neq('id', editState.id);
+  const active = (data||[]).filter(r=>!['cancelled_by_user','cancelled_by_admin'].includes(r.status));
+  return slotStarts(loc).filter(s => computeMaxDurAgainst(loc, s, active) >= loc.minDuration);
+}
+function computeMaxDurAgainst(loc, startHour, activeList){
+  let h = startHour;
+  while(h < loc.dayEnd){
+    const occ = activeList.find(r => h >= r.start_hour && h < r.end_hour);
+    if(occ) break;
+    h += loc.slotStep;
+  }
+  return Math.min(Math.round((h-startHour)*(1/loc.slotStep))/(1/loc.slotStep), MAX_DURATION_CAP);
+}
+async function populateEditStarts(){
+  const loc = editState.loc;
+  const starts = await getValidStartsForEdit();
+  const sel = document.getElementById('editStartSelect');
+  if(!starts.length){ sel.innerHTML = '<option>Žádný volný čas</option>'; document.getElementById('editEndSelect').innerHTML=''; updateEditPriceSummary(); return; }
+  if(!starts.includes(editState.startHour)) editState.startHour = starts[0];
+  sel.innerHTML = starts.map(s=>`<option value="${s}" ${s===editState.startHour?'selected':''}>${formatHour(s)}</option>`).join('');
+  await populateEditEnds();
+}
+async function onEditStartChange(){
+  editState.startHour = parseFloat(document.getElementById('editStartSelect').value);
+  await populateEditEnds();
+}
+async function populateEditEnds(){
+  const loc = editState.loc;
+  const { data } = await sb.from('reservations').select('id,start_hour,end_hour,status')
+    .eq('court_id', editState.courtId).eq('date', editState.date).neq('id', editState.id);
+  const active = (data||[]).filter(r=>!['cancelled_by_user','cancelled_by_admin'].includes(r.status));
+  const maxDur = computeMaxDurAgainst(loc, editState.startHour, active);
+  const ends = [];
+  for(let d=loc.minDuration; d<=maxDur+1e-9; d+=loc.slotStep){ ends.push(Math.round((editState.startHour+d)*(1/loc.slotStep))/(1/loc.slotStep)); }
+  const sel = document.getElementById('editEndSelect');
+  const currentEnd = editState.startHour + editState.duration;
+  const defaultEnd = ends.includes(currentEnd) ? currentEnd : ends[0];
+  sel.innerHTML = ends.map(e=>`<option value="${e}" ${e===defaultEnd?'selected':''}>${formatHour(e)}</option>`).join('');
+  editState.duration = defaultEnd - editState.startHour;
+  updateEditPriceSummary();
+}
+function onEditEndChange(){
+  const end = parseFloat(document.getElementById('editEndSelect').value);
+  editState.duration = end - editState.startHour;
+  updateEditPriceSummary();
+}
+function updateEditPriceSummary(){
+  const base = Math.round(editState.duration * editState.loc.priceHour);
+  const amount = Math.round(base * (1 - editState.discount/100));
+  document.getElementById('editPriceSummary').innerHTML = `
+    <div class="price-row"><span>Nová délka</span><span>${editState.duration} h (${formatHour(editState.startHour)}–${formatHour(editState.startHour+editState.duration)})</span></div>
+    <div class="price-row total"><span>Nová cena (sleva ${editState.discount} % zůstává)</span><span>${amount} Kč</span></div>`;
+}
+async function saveEditedReservation(){
+  const base = Math.round(editState.duration * editState.loc.priceHour);
+  const amount = Math.round(base * (1 - editState.discount/100));
+  const { error } = await sb.from('reservations').update({
+    court_id: editState.courtId, date: editState.date,
+    start_hour: editState.startHour, duration_hours: editState.duration, end_hour: editState.startHour + editState.duration,
+    base_price: base, amount_due: amount
+  }).eq('id', editState.id);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Rezervace upravena');
+  closeModal('adminSlotOverlay');
+  await renderAll();
+}
+
 function showAdminBlockForm(courtId, hour){
   const el = document.getElementById('adminSlotSubForm');
   el.innerHTML = `
@@ -1272,13 +1383,13 @@ function renderAdminTable(){
   if(search) list = list.filter(r => (r.organizer_name||r.event_name||'').toLowerCase().includes(search));
   list.sort((a,b)=>(a.date+a.start_hour)<(b.date+b.start_hour)?1:-1);
   table.innerHTML = list.length ? `
-    <tr><th>Hřiště</th><th>Kurt</th><th>Datum</th><th>Čas</th><th>Typ</th><th>Kdo</th><th>Sleva</th><th>Stav</th><th>Vytvořil</th></tr>
+    <tr><th>Hřiště</th><th>Kurt</th><th>Datum</th><th>Čas</th><th>Typ</th><th>Kdo</th><th>Sleva</th><th>Stav</th><th>Vytvořil</th><th>Poznámka</th></tr>
     ${list.map(r=>{
       const court=findCourt(r.court_id);
       const statusLabel = {pending_payment:'Čeká na platbu', paid_confirmed:'Zaplaceno', club_blocked:'Blokace/akce', cancelled_by_user:'Zrušeno (hráč)', cancelled_by_admin:'Zrušeno (admin)'}[r.status] || r.status;
       return `<tr><td>${court.locationName}</td><td>${court.name}</td><td>${r.date}</td><td>${formatHour(r.start_hour)}–${formatHour(r.end_hour)}</td>
         <td>${r.type==='club_event'?'Akce':'Rezervace'}</td><td>${r.organizer_name||r.event_name||'—'}</td>
-        <td>${r.discount_applied ?? '—'} %</td><td>${statusLabel}</td><td>${r.created_by || 'hráč (online)'}</td></tr>`;
+        <td>${r.discount_applied ?? '—'} %</td><td>${statusLabel}</td><td>${r.created_by || 'hráč (online)'}</td><td>${r.admin_note||'—'}</td></tr>`;
     }).join('')}
   ` : `<tr><td style="padding:16px;color:#948e83;">Žádné rezervace pro tenhle filtr</td></tr>`;
 }
@@ -1462,7 +1573,14 @@ async function removePendingMembership(id){
   await renderPendingMemberships();
 }
 
-/* ================= HELPERS ================= */
+async function updateReservationNote(id){
+  const note = document.getElementById('editNoteInput').value.trim();
+  const { error } = await sb.from('reservations').update({admin_note: note || null}).eq('id', id);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Poznámka uložena');
+  closeModal('adminSlotOverlay');
+  await renderAll();
+}
 function emptyState(title, sub){ return `<div class="empty-state"><div class="em-title">${title}</div>${sub}</div>`; }
 
 /* ================= NAV DATUM ================= */
