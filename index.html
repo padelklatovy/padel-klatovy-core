@@ -348,7 +348,7 @@
         </div>
       </div>
     </div>
-    <div class="checkbox-row">
+    <div class="checkbox-row" id="openMatchRow">
       <input type="checkbox" id="openMatchCheck" onchange="document.getElementById('openMatchLevelBox').style.display=this.checked?'block':'none'">
       <div style="flex:1;">
         <div class="cb-title">Chci hledat spoluhráče</div>
@@ -687,7 +687,7 @@ function openBookingModal({courtId, startHour, adminMode}){
   }
 
   document.getElementById('openMatchCheck').checked = false;
-  document.getElementById('openMatchCheck').disabled = false;
+  document.getElementById('openMatchRow').style.display = '';
   document.getElementById('openMatchLevelBox').style.display = 'none';
   populateLevelSelect('openMatchLevel', profile ? profile.level : 'C2');
 
@@ -764,9 +764,11 @@ function updateDurationSummary(){
 }
 function onRepeatToggle(checked){
   document.getElementById('repeatBox').style.display = checked ? 'block' : 'none';
+  document.getElementById('openMatchRow').style.display = checked ? 'none' : '';
   const omCheck = document.getElementById('openMatchCheck');
-  omCheck.disabled = checked;
-  if(checked){ omCheck.checked = false; document.getElementById('openMatchLevelBox').style.display = 'none'; updateSeriesSummary(); }
+  omCheck.checked = false;
+  document.getElementById('openMatchLevelBox').style.display = 'none';
+  if(checked){ updateSeriesSummary(); }
 }
 function updateSeriesSummary(){
   const summaryEl = document.getElementById('seriesSummary');
