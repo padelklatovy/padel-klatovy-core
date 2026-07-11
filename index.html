@@ -83,12 +83,16 @@
   .slot{height:44px;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;transition:background .1s ease;overflow:hidden;}
   .slot:hover{background:#FDECEC;}
   .slot.free{background:repeating-linear-gradient(135deg, #fff, #fff 6px, #FCFAF7 6px, #FCFAF7 12px);}
-  .slot.mine{background:var(--ok-bg);}
-  .slot.mine .tag{color:var(--ok-text);}
-  .slot.blocked{background:var(--paper-dim);cursor:not-allowed;}
-  .slot.blocked .tag{color:#9a948a;}
-  .slot.openmatch{background:var(--amber-bg);cursor:pointer;}
-  .slot.openmatch:hover{filter:brightness(0.97);}
+  .slot.mine{background:var(--green);}
+  .slot.mine .tag{color:#fff;}
+  .slot.event{background:var(--ink);cursor:not-allowed;}
+  .slot.event .tag{color:#fff;}
+  .slot.taken{background:#C9C0AC;cursor:not-allowed;}
+  .slot.taken .tag{color:#4a4438;}
+  .slot.openmatch{background:var(--amber);cursor:pointer;}
+  .slot.openmatch .tag{color:#fff;}
+  .slot.openmatch:hover{filter:brightness(1.08);}
+  .slot.mine:hover, .slot.event:hover, .slot.taken:hover{filter:brightness(1.05);}
   .slot.continuation{border-left:none;}
   .slot .tag{font-size:9px;font-family:var(--font-head);font-weight:600;text-transform:uppercase;text-align:center;line-height:1.1;padding:0 2px;}
 
@@ -196,7 +200,7 @@
     <div id="productSelector" class="product-grid"></div>
     <div id="gridWrap" style="display:none;">
       <div class="active-product-bar">
-        <button class="back-link" onclick="backToProducts()">‹ Změnit hřiště</button>
+        <button class="back-link" onclick="backToProducts()">‹ Změnit areál</button>
         <b id="activeProductLabel"></b>
       </div>
       <div class="date-bar">
@@ -210,9 +214,10 @@
       <div class="grid-scroll"><div class="court-grid" id="courtGrid">Načítání…</div></div>
       <div class="legend">
         <span class="sw"><span class="box" style="background:repeating-linear-gradient(135deg,#fff,#fff 3px,#FCFAF7 3px,#FCFAF7 6px)"></span>Volné</span>
-        <span class="sw"><span class="box" style="background:var(--paper-dim)"></span>Obsazené / akce</span>
-        <span class="sw"><span class="box" style="background:var(--amber-bg)"></span>Open Match (hledá hráče)</span>
-        <span class="sw"><span class="box" style="background:var(--ok-bg)"></span>Moje rezervace</span>
+        <span class="sw"><span class="box" style="background:#C9C0AC"></span>Obsazené</span>
+        <span class="sw"><span class="box" style="background:var(--ink)"></span>Klubová akce / turnaj</span>
+        <span class="sw"><span class="box" style="background:var(--amber)"></span>Open Match (hledá hráče)</span>
+        <span class="sw"><span class="box" style="background:var(--green)"></span>Moje rezervace</span>
       </div>
     </div>
   </section>
@@ -641,10 +646,10 @@ async function renderGrid(){
       let cls='free', tag='', clickable=true;
       if(r){
         const isHead = (r.start_hour === s);
-        if(r.status==='club_blocked'){ cls='blocked'; tag = isHead ? (r.event_name||'Akce') : ''; clickable = isAdmin(); }
+        if(r.status==='club_blocked'){ cls='event'; tag = isHead ? (r.event_name||'Akce') : ''; clickable = isAdmin(); }
         else if(r.is_open_match && r.status==='paid_confirmed'){ cls='openmatch'; tag = isHead ? 'Open Match' : ''; }
         else if(profile && r.member_id===profile.user_id){ cls='mine'; tag = isHead ? (r.status==='pending_payment' ? 'Čeká platba' : 'Moje') : ''; }
-        else { cls='blocked'; tag = isHead ? (isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno') : ''; clickable = isAdmin(); }
+        else { cls='taken'; tag = isHead ? (isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno') : ''; clickable = isAdmin(); }
         if(!isHead) cls += ' continuation';
       }
       html += `<div class="cell"><div class="slot ${cls}" ${clickable?`onclick="openSlot('${court.id}',${s})"`:''}>${tag?`<span class="tag">${tag}</span>`:''}</div></div>`;
