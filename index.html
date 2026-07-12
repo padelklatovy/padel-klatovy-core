@@ -97,8 +97,9 @@
   .slot.openmatch .tag{color:#fff;}
   .slot.openmatch:hover{filter:brightness(1.08);}
   .slot.mine:hover, .slot.event:hover, .slot.taken:hover{filter:brightness(1.05);}
-  .slot.continuation{border-left:none;}
-  .slot .tag{font-size:9px;font-family:var(--font-head);font-weight:600;text-transform:uppercase;text-align:center;line-height:1.1;padding:0 2px;}
+  .slot.spanning{border-radius:6px;margin:2px 1px;height:auto;align-self:stretch;}
+  .slot .tag{font-size:9px;font-family:var(--font-head);font-weight:600;text-transform:uppercase;text-align:center;line-height:1.1;padding:0 4px;}
+  .slot.spanning .tag{font-size:11px;}
 
   .legend{display:flex;gap:18px;margin-top:14px;flex-wrap:wrap;font-size:13px;color:#5c574e;}
   .legend .sw{display:inline-flex;align-items:center;gap:6px;}
@@ -657,19 +658,24 @@ async function renderGrid(){
 
   loc.courts.forEach(court => {
     html += `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},1fr);"><div class="court-label">${court.name}<small>${court.sub||''}</small></div>`;
-    starts.forEach(s => {
+    let i = 0;
+    while(i < starts.length){
+      const s = starts[i];
       const r = findReservationAt(court.id, s);
-      let cls='free', tag='', clickable=true;
-      if(r){
-        const isHead = (r.start_hour === s);
-        if(r.status==='club_blocked'){ cls='event'; tag = isHead ? (r.event_name||'Akce') : ''; clickable = isAdmin(); }
-        else if(r.is_open_match && r.status==='paid_confirmed'){ cls='openmatch'; tag = isHead ? 'Open Match' : ''; }
-        else if(profile && r.member_id===profile.user_id){ cls='mine'; tag = isHead ? (r.status==='pending_payment' ? 'Čeká platba' : 'Moje') : ''; }
-        else { cls='taken'; tag = isHead ? (isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno') : ''; clickable = isAdmin(); }
-        if(!isHead) cls += ' continuation';
+      if(r && r.start_hour === s){
+        const span = Math.max(1, Math.round((r.end_hour - r.start_hour) * (1/loc.slotStep)));
+        let cls='taken', tag='Obsazeno', clickable=true;
+        if(r.status==='club_blocked'){ cls='event'; tag = r.event_name||'Akce'; clickable = isAdmin(); }
+        else if(r.is_open_match && r.status==='paid_confirmed'){ cls='openmatch'; tag = 'Open Match'; }
+        else if(profile && r.member_id===profile.user_id){ cls='mine'; tag = r.status==='pending_payment' ? 'Čeká platba' : 'Moje'; }
+        else { cls='taken'; tag = isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; clickable = isAdmin(); }
+        html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" ${clickable?`onclick="openSlot('${court.id}',${s})"`:''}><span class="tag">${tag}</span></div></div>`;
+        i += span;
+      } else {
+        html += `<div class="cell"><div class="slot free" onclick="openSlot('${court.id}',${s})"></div></div>`;
+        i += 1;
       }
-      html += `<div class="cell"><div class="slot ${cls}" ${clickable?`onclick="openSlot('${court.id}',${s})"`:''}>${tag?`<span class="tag">${tag}</span>`:''}</div></div>`;
-    });
+    }
     html += `</div>`;
   });
   grid.innerHTML = html;
