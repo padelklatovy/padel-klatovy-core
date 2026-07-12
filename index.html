@@ -5,14 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PADEL KLATOVY</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Barlow+Condensed:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
     --red:#FF0000; --red-deep:#C40000; --green:#00534E; --green-soft:#0A7A6E;
     --ink:#141414; --paper:#FAF8F5; --paper-dim:#EFECE6; --line:#E3DFD6;
     --amber:#B8790A; --amber-bg:#FCEFD6; --ok-bg:#E4F3EE; --ok-text:#0A5C4C; --danger-bg:#FBE7E5;
-    --font-display:'Archivo Black', sans-serif; --font-head:'Barlow Condensed', sans-serif; --font-body:'Work Sans', sans-serif;
+    --taken-bg:#A8A29A; --taken-text:#3A3730;
+    --font-display:'Montserrat', sans-serif; --font-head:'Montserrat', sans-serif; --font-body:'Montserrat', sans-serif;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-body);-webkit-font-smoothing:antialiased;}
@@ -91,8 +92,8 @@
   .slot.mine .tag{color:#fff;}
   .slot.event{background:var(--ink);cursor:not-allowed;}
   .slot.event .tag{color:#fff;}
-  .slot.taken{background:#C9C0AC;cursor:not-allowed;}
-  .slot.taken .tag{color:#4a4438;}
+  .slot.taken{background:var(--taken-bg);cursor:not-allowed;}
+  .slot.taken .tag{color:var(--taken-text);}
   .slot.openmatch{background:var(--amber);cursor:pointer;}
   .slot.openmatch .tag{color:#fff;}
   .slot.openmatch:hover{filter:brightness(1.08);}
@@ -161,7 +162,7 @@
 
   .admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
   .stat-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px;}
-  .stat-card .num{font-family:var(--font-display);font-size:30px;color:var(--red);}
+  .stat-card .num{font-family:var(--font-display);font-weight:800;font-size:30px;color:var(--red);}
   .stat-card .lbl{font-size:13px;color:#767066;margin-top:4px;text-transform:uppercase;letter-spacing:0.3px;}
   table.admin-table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
   table.admin-table th{background:var(--ink);color:#fff;text-align:left;padding:10px 12px;font-family:var(--font-head);font-size:12px;text-transform:uppercase;letter-spacing:0.4px;font-weight:600;}
@@ -219,7 +220,7 @@
       <div class="grid-scroll"><div class="court-grid" id="courtGrid">Načítání…</div></div>
       <div class="legend">
         <span class="sw"><span class="box" style="background:repeating-linear-gradient(135deg,#fff,#fff 3px,#FCFAF7 3px,#FCFAF7 6px)"></span>Volné</span>
-        <span class="sw"><span class="box" style="background:#C9C0AC"></span>Obsazené</span>
+        <span class="sw"><span class="box" style="background:var(--taken-bg)"></span>Obsazené</span>
         <span class="sw"><span class="box" style="background:var(--ink)"></span>Klubová akce / turnaj</span>
         <span class="sw"><span class="box" style="background:var(--amber)"></span>Open Match (hledá hráče)</span>
         <span class="sw"><span class="box" style="background:var(--green)"></span>Moje rezervace</span>
@@ -586,7 +587,7 @@ async function loadVenues(){
 // Dokud tam nejsou, appka to sama nahradí barevným pozadím se jménem sportu (nic se nerozbije).
 const VENUE_MEDIA = {
   'padel-klatovy':      { photo: 'photo-padel-klatovy.jpg',      logo: 'logo.png' },
-  'beachvolley-klatovy':{ photo: 'photo-beachvolejbal-klatovy.jpg', logo: 'logo-beachvolejbal-klatovy.png' },
+  'beachvolley-klatovy':{ photo: 'photo-beachvolejbal-klatovy.jpg', logo: 'logo-beachvolejbal-klatovy.jpg' },
   'padel-brandys':      { photo: 'photo-padel-brandys.jpg',      logo: 'logo-padel-brandys.jpg' },
 };
 function renderProductSelector(){
