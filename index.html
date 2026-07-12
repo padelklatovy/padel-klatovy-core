@@ -10,7 +10,7 @@
 <style>
   :root{
     --red:#FF0000; --red-deep:#C40000; --green:#024442; --green-soft:#0E6E6A;
-    --ink:#141414; --paper:#FAF8F5; --paper-dim:#EFECE6; --line:#E3DFD6;
+    --ink:#141414; --paper:#FAFAFA; --paper-dim:#EFEFEF; --line:#E0E0E0;
     --amber:#B8790A; --amber-bg:#FCEFD6; --ok-bg:#E4F3EE; --ok-text:#0A5C4C; --danger-bg:#FBE7E5;
     --taken-bg:#898989; --taken-text:#FFFFFF;
     --font-display:'Montserrat', sans-serif; --font-head:'Montserrat', sans-serif; --font-body:'Montserrat', sans-serif;
@@ -53,7 +53,7 @@
   .view.active{display:block;}
 
   h1.page-title{font-family:var(--font-head);font-size:34px;font-weight:700;text-transform:uppercase;margin:0 0 4px;letter-spacing:0.3px;}
-  .page-sub{color:#767066;margin:0 0 24px;font-size:15px;}
+  .page-sub{color:#6E6E6E;margin:0 0 24px;font-size:15px;}
 
   .product-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(220px,1fr));gap:16px;margin-bottom:8px;}
   .product-card{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;}
@@ -64,7 +64,7 @@
   .product-logo-badge img{width:100%;height:100%;object-fit:contain;}
   .product-body{padding:32px 16px 16px;display:flex;flex-direction:column;gap:10px;flex:1;}
   .product-body b{font-family:var(--font-head);font-size:19px;font-weight:600;}
-  .product-body .p-meta{font-size:12px;color:#8a847a;text-transform:uppercase;letter-spacing:0.3px;}
+  .product-body .p-meta{font-size:12px;color:#6E6E6E;text-transform:uppercase;letter-spacing:0.3px;}
   .back-link{background:none;border:none;color:var(--green);font-family:var(--font-head);font-weight:600;font-size:14px;cursor:pointer;padding:0;margin-bottom:14px;display:inline-flex;align-items:center;gap:4px;}
   .back-link:hover{text-decoration:underline;}
   .active-product-bar{display:flex;align-items:center;justify-content:space-between;background:var(--paper-dim);border-radius:10px;padding:10px 16px;margin-bottom:14px;}
@@ -81,13 +81,13 @@
   .grid-row{display:grid;border-top:1px solid var(--line);}
   .grid-row:first-child{border-top:none;background:var(--ink);}
   .grid-row:first-child .cell{color:#fff;font-family:var(--font-head);font-size:10px;text-align:center;padding:8px 0;font-weight:600;}
-  .grid-row:first-child .cell.half{color:#D9D4C8;}
+  .grid-row:first-child .cell.half{color:#D0D0D0;}
   .court-label{padding:14px 10px;font-family:var(--font-head);font-weight:600;font-size:14px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;background:var(--paper);position:sticky;left:0;z-index:2;}
-  .court-label small{font-weight:400;font-size:10px;color:#8a847a;text-transform:uppercase;letter-spacing:0.4px;}
+  .court-label small{font-weight:400;font-size:10px;color:#6E6E6E;text-transform:uppercase;letter-spacing:0.4px;}
   .cell{border-right:1px solid var(--line);min-width:0;}
   .slot{height:44px;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;transition:background .1s ease;overflow:hidden;}
   .slot:hover{background:#FDECEC;}
-  .slot.free{background:repeating-linear-gradient(135deg, #fff, #fff 6px, #FCFAF7 6px, #FCFAF7 12px);}
+  .slot.free{background:repeating-linear-gradient(135deg, #fff, #fff 6px, #F5F5F5 6px, #F5F5F5 12px);}
   .slot.mine{background:var(--green);}
   .slot.mine .tag{color:#fff;}
   .slot.event{background:var(--ink);cursor:not-allowed;}
@@ -110,7 +110,7 @@
   .overlay.show{display:flex;}
   .modal{background:#fff;border-radius:14px;max-width:460px;width:100%;padding:26px;max-height:90vh;overflow-y:auto;}
   .modal h2{font-family:var(--font-head);font-size:24px;margin:0 0 4px;text-transform:uppercase;font-weight:700;}
-  .modal .modal-sub{color:#767066;font-size:14px;margin:0 0 18px;}
+  .modal .modal-sub{color:#6E6E6E;font-size:14px;margin:0 0 18px;}
   .modal-close{float:right;background:none;border:none;font-size:20px;cursor:pointer;color:#999;}
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#4a453d;}
@@ -119,12 +119,12 @@
   .checkbox-row{display:flex;align-items:flex-start;gap:10px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px;margin:14px 0;}
   .checkbox-row input{margin-top:3px;}
   .checkbox-row .cb-title{font-weight:600;font-size:14px;}
-  .checkbox-row .cb-sub{font-size:12px;color:#767066;margin-top:2px;}
+  .checkbox-row .cb-sub{font-size:12px;color:#6E6E6E;margin-top:2px;}
 
   .duration-box{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px;}
   .duration-box .dlabel{display:flex;justify-content:space-between;font-family:var(--font-head);font-size:15px;font-weight:600;margin-bottom:8px;}
   .duration-box input[type=range]{width:100%;accent-color:var(--red);}
-  .duration-box .drange-note{font-size:12px;color:#8a847a;margin-top:4px;}
+  .duration-box .drange-note{font-size:12px;color:#6E6E6E;margin-top:4px;}
 
   .players-box{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px;background:#fff;}
   .players-box .p-title{font-family:var(--font-head);font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;}
@@ -155,7 +155,7 @@
   .card-list{display:flex;flex-direction:column;gap:10px;}
   .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;}
   .card .info b{font-family:var(--font-head);font-size:17px;font-weight:600;}
-  .card .info .meta{font-size:13px;color:#767066;margin-top:3px;}
+  .card .info .meta{font-size:13px;color:#6E6E6E;margin-top:3px;}
   .card .actions{display:flex;gap:8px;align-items:center;}
   .empty-state{text-align:center;padding:50px 20px;color:#948e83;border:1px dashed var(--line);border-radius:12px;}
   .empty-state .em-title{font-family:var(--font-head);font-size:20px;color:var(--ink);margin-bottom:6px;}
@@ -163,7 +163,7 @@
   .admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
   .stat-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px;}
   .stat-card .num{font-family:var(--font-display);font-weight:800;font-size:30px;color:var(--red);}
-  .stat-card .lbl{font-size:13px;color:#767066;margin-top:4px;text-transform:uppercase;letter-spacing:0.3px;}
+  .stat-card .lbl{font-size:13px;color:#6E6E6E;margin-top:4px;text-transform:uppercase;letter-spacing:0.3px;}
   table.admin-table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
   table.admin-table th{background:var(--ink);color:#fff;text-align:left;padding:10px 12px;font-family:var(--font-head);font-size:12px;text-transform:uppercase;letter-spacing:0.4px;font-weight:600;}
   table.admin-table td{padding:10px 12px;border-top:1px solid var(--line);font-size:14px;}
@@ -219,7 +219,7 @@
       </div>
       <div class="grid-scroll"><div class="court-grid" id="courtGrid">Načítání…</div></div>
       <div class="legend">
-        <span class="sw"><span class="box" style="background:repeating-linear-gradient(135deg,#fff,#fff 3px,#FCFAF7 3px,#FCFAF7 6px)"></span>Volné</span>
+        <span class="sw"><span class="box" style="background:repeating-linear-gradient(135deg,#fff,#fff 3px,#F5F5F5 3px,#F5F5F5 6px)"></span>Volné</span>
         <span class="sw"><span class="box" style="background:var(--taken-bg)"></span>Obsazené</span>
         <span class="sw"><span class="box" style="background:var(--ink)"></span>Klubová akce / turnaj</span>
         <span class="sw"><span class="box" style="background:var(--amber)"></span>Open Match (hledá hráče)</span>
@@ -320,7 +320,7 @@
     <p class="modal-sub">Pošleme ti přihlašovací odkaz na e-mail — žádné heslo.</p>
     <div class="field"><label>E-mail</label><input id="loginEmail" placeholder="jana@example.com" type="email"></div>
     <button class="btn btn-primary" style="width:100%;" onclick="sendMagicLink()">Poslat přihlašovací odkaz</button>
-    <div id="loginStatus" style="margin-top:12px;font-size:13px;color:#767066;"></div>
+    <div id="loginStatus" style="margin-top:12px;font-size:13px;color:#6E6E6E;"></div>
   </div>
 </div>
 
@@ -373,7 +373,7 @@
         <div id="repeatBox" style="display:none;margin-top:10px;">
           <div class="field" style="margin-bottom:8px;"><label style="font-size:12px;">Název série</label><input id="seriesName" placeholder="např. Čtvrteční skupina Novákovi"></div>
           <div class="field" style="margin-bottom:0;"><label style="font-size:12px;">Opakovat do (včetně)</label><input type="date" id="seriesUntil" onchange="updateSeriesSummary()"></div>
-          <div id="seriesSummary" style="font-size:12px;color:#767066;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);"></div>
+          <div id="seriesSummary" style="font-size:12px;color:#6E6E6E;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);"></div>
         </div>
       </div>
     </div>
@@ -1222,7 +1222,7 @@ function openAdminSlotModal(courtId, hour, existing){
   box.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:8px;">
       <button class="btn btn-dark" ${maxDur<loc.minDuration?'disabled':''} onclick="closeModal('adminSlotOverlay');openBookingModal({courtId:'${courtId}', startHour:${hour}, maxDuration:${maxDur}, adminMode:true})">Vytvořit rezervaci</button>
-      ${maxDur<loc.minDuration ? `<p style="font-size:12px;color:#767066;margin:0 0 4px;">Méně než ${loc.minDuration} h volného prostoru — rezervaci nelze založit, jen zablokovat tento slot.</p>` : ''}
+      ${maxDur<loc.minDuration ? `<p style="font-size:12px;color:#6E6E6E;margin:0 0 4px;">Méně než ${loc.minDuration} h volného prostoru — rezervaci nelze založit, jen zablokovat tento slot.</p>` : ''}
       <button class="btn btn-ghost" onclick="showAdminBlockForm('${courtId}',${hour})">Zablokovat (turnaj / akce)</button>
     </div>
     <div id="adminSlotSubForm"></div>`;
@@ -1332,7 +1332,7 @@ function showAdminBlockForm(courtId, hour){
   el.innerHTML = `
     <div class="field" style="margin-top:14px;"><label>Název akce</label><input id="adminBlockName" placeholder="např. Turnaj dvojic"></div>
     <button class="btn btn-primary" style="width:100%;" onclick="adminCreateBlockSingle('${courtId}',${hour})">Zablokovat tento slot</button>
-    <p style="font-size:12px;color:#767066;margin-top:8px;">Potřebuješ zablokovat víc hodin najednou? Použij hromadnou blokaci dole v Adminu.</p>`;
+    <p style="font-size:12px;color:#6E6E6E;margin-top:8px;">Potřebuješ zablokovat víc hodin najednou? Použij hromadnou blokaci dole v Adminu.</p>`;
 }
 async function adminCreateBlockSingle(courtId, hour){
   const loc = activeLoc();
@@ -1511,7 +1511,7 @@ function openMemberDetail(userId){
         </select>
       </span></div>
     </div>
-    <p style="font-size:12px;color:#767066;margin:-8px 0 14px;">Role v appce = kdo vidí Admin sekci. Členská úroveň = kdo má jakou slevu na rezervace. Dvě různé věci, nastavují se zvlášť.</p>
+    <p style="font-size:12px;color:#6E6E6E;margin:-8px 0 14px;">Role v appce = kdo vidí Admin sekci. Členská úroveň = kdo má jakou slevu na rezervace. Dvě různé věci, nastavují se zvlášť.</p>
     <div class="admin-grid" style="margin-bottom:14px;">
       <div class="stat-card"><div class="num">${m.revenue} Kč</div><div class="lbl">Tržba celkem</div></div>
       <div class="stat-card"><div class="num">${m.count}</div><div class="lbl">Počet rezervací</div></div>
