@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root{
     --red:#FF0000; --red-deep:#C40000; --green:#024442; --green-soft:#0E6E6A;
@@ -142,9 +143,7 @@
   .badge-discount{background:var(--ok-bg);color:var(--ok-text);font-size:11px;padding:2px 8px;border-radius:100px;font-weight:600;}
 
   .qr-box{text-align:center;padding:10px 0;}
-  .qr-visual{width:180px;height:180px;margin:0 auto 14px;background:#fff;border:1px solid var(--line);display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);gap:2px;padding:10px;}
-  .qr-visual div{background:var(--ink);}
-  .qr-visual div.off{background:#fff;}
+  .qr-visual{width:240px;height:240px;margin:0 auto 14px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:10px;}
   .qr-meta{font-size:13px;color:#5c574e;line-height:1.6;margin-bottom:16px;}
   .qr-meta b{color:var(--ink);}
   .status-pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-head);font-weight:600;font-size:13px;padding:6px 14px;border-radius:100px;text-transform:uppercase;letter-spacing:0.3px;}
@@ -181,8 +180,6 @@
 </style>
 </head>
 <body>
-
-<div class="banner">🔒 <b>RLS zapnuté a otestované</b> — appka je připojená na skutečný Supabase, platby zatím jen simulované (čekáme na FIO účet).</div>
 
 <header class="app-header">
   <div class="brand"><div class="brand-logo-card"><img src="logo.png" alt="Padel Klatovy" class="brand-logo-img"></div></div>
@@ -402,13 +399,12 @@
   <div class="modal">
     <button class="modal-close" onclick="closeModal('paymentOverlay')">×</button>
     <h2>Platba QR kódem</h2>
-    <p class="modal-sub">Naskenuj v bankovní appce. Po připsání platby se rezervace potvrdí automaticky (dnes: manuálně tlačítkem níže — FIO polling zatím není zapojen).</p>
+    <p class="modal-sub">Naskenuj v bankovní appce. Po připsání platby se rezervace potvrdí automaticky (obvykle do 15 minut).</p>
     <div class="qr-box">
       <div class="qr-visual" id="qrVisual"></div>
       <div class="qr-meta" id="qrMeta"></div>
       <div id="paymentStatusBox"></div>
     </div>
-    <button class="btn btn-green" style="width:100%;margin-top:6px;" id="simulatePayBtn" onclick="simulatePayment()">Simulovat příchozí platbu (demo)</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('paymentOverlay')">Zavřít, doplatím později</button>
   </div>
 </div>
@@ -487,7 +483,26 @@ function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg
 function showModal(id){ document.getElementById(id).classList.add('show'); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 function genVS(){ return Date.now().toString().slice(-9); }
-function genQR(){ const c=[]; for(let i=0;i<81;i++) c.push(Math.random()>0.45); return c; }
+const CLUB_IBAN = 'CZ7420100000002603548015';
+const CLUB_ACCOUNT_DISPLAY = '2603548015/2010';
+
+function buildSpdPaymentString(amount, vs, message){
+  // Český standard "QR Platba" (SPD - Short Payment Descriptor).
+  // Zprávu omezíme na bezpečná ASCII-přátelská data (banky s diakritikou
+  // umí být nevyzpytatelné), max ~60 znaků dle doporučení.
+  const cleanMsg = message.normalize('NFD').replace(/[\u0300-\u036f]/g,'').slice(0,60);
+  const amt = Number(amount).toFixed(2);
+  return `SPD*1.0*ACC:${CLUB_IBAN}*AM:${amt}*CC:CZK*X-VS:${vs}*MSG:${cleanMsg}`;
+}
+function renderPaymentQR(container, amount, vs, message){
+  container.innerHTML = '';
+  new QRCode(container, {
+    text: buildSpdPaymentString(amount, vs, message),
+    width: 220,
+    height: 220,
+    correctLevel: QRCode.CorrectLevel.M
+  });
+}
 function avgDiscount(players){ if(!players.length) return 0; return Math.round(players.reduce((s,p)=>s+p.discount,0) / players.length); }
 function populateLevelSelect(selectId, selectedCode){
   const el = document.getElementById(selectId); if(!el) return;
@@ -1042,17 +1057,20 @@ async function openPaymentModalFor(reservation, payment){
     }
   }
   const qr = document.getElementById('qrVisual');
-  qr.innerHTML = genQR().map(on => `<div class="${on?'':'off'}"></div>`).join('');
+  const amount = payment ? payment.amount : reservation.amount_due;
+  const vs = payment ? payment.variable_symbol : '';
   const seriesNote = reservation.series_id ? `<br><b>Platba za celou sérii „${reservation.series_name}"</b>` : '';
-  document.getElementById('qrMeta').innerHTML = `Účet: <b>123456789/2010</b> · Částka: <b>${payment ? payment.amount : reservation.amount_due} Kč</b><br>VS: <b>${payment ? payment.variable_symbol : '—'}</b> · Zpráva: <b>Rezervace kurtu ${reservation.date} ${formatHour(reservation.start_hour)}</b>${seriesNote}`;
+  const msg = `Rezervace kurtu ${reservation.date} ${formatHour(reservation.start_hour)}`;
+  if(vs) renderPaymentQR(qr, amount, vs, msg); else qr.innerHTML = '';
+  document.getElementById('qrMeta').innerHTML = `Účet: <b>${CLUB_ACCOUNT_DISPLAY}</b> · Částka: <b>${amount} Kč</b><br>VS: <b>${vs || '—'}</b> · Zpráva: <b>${msg}</b>${seriesNote}`;
   renderPaymentStatus(reservation);
   activeReservationId = reservation.id;
   showModal('paymentOverlay');
 }
 function renderPaymentStatus(reservation){
-  const box = document.getElementById('paymentStatusBox'); const btn = document.getElementById('simulatePayBtn');
-  if(reservation.status === 'paid_confirmed'){ box.innerHTML = `<span class="status-pill paid">✓ Zaplaceno</span>`; btn.style.display='none'; }
-  else { box.innerHTML = `<span class="status-pill pending">Čeká na platbu</span>`; btn.style.display=''; }
+  const box = document.getElementById('paymentStatusBox');
+  if(reservation.status === 'paid_confirmed'){ box.innerHTML = `<span class="status-pill paid">✓ Zaplaceno</span>`; }
+  else { box.innerHTML = `<span class="status-pill pending">Čeká na platbu</span>`; }
 }
 async function confirmPaymentCascade(reservationId, confirmedBy){
   const { data: res, error } = await sb.from('reservations').select('*').eq('id', reservationId).single();
@@ -1068,13 +1086,6 @@ async function confirmPaymentCascade(reservationId, confirmedBy){
     await sb.from('payments').update({status:'manually_confirmed', paid_at:new Date().toISOString(), confirmed_by:confirmedBy}).eq('reservation_id', reservationId);
   }
   return res;
-}
-async function simulatePayment(){
-  const res = await confirmPaymentCascade(activeReservationId, 'demo_simulace');
-  if(!res){ toast('Chyba při potvrzování platby'); return; }
-  renderPaymentStatus({...res, status:'paid_confirmed'});
-  toast(res.series_id ? 'Platba potvrzena — celá série je pevná' : 'Platba potvrzena (simulace) — rezervace je pevná');
-  await renderGrid();
 }
 
 /* ================= MOJE REZERVACE ================= */
