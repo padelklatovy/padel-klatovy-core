@@ -244,7 +244,6 @@
     <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;">
       <button class="btn btn-ghost" onclick="window.open('https://padelklatovy.github.io/kalendar/', '_blank')">Otevřít plný kalendář ↗</button>
       <button class="btn btn-ghost" onclick="window.open('https://padelklatovy.github.io/padel-klatovy-bar/', '_blank')">🍺 Klubový bar ↗</button>
-      <button class="btn btn-ghost" onclick="window.open('https://padelklatovy.github.io/zdravyhrac/', '_blank')">❤️ Zdravý hráč ↗</button>
     </div>
   </section>
 
@@ -280,20 +279,47 @@
     <p class="page-sub" style="margin-top:-6px;">Pravidelné skupiny — zrušíš celou sérii jedním tlačítkem, ne termín po termínu.</p>
     <table class="admin-table" id="seriesTable"></table>
 
-    <div class="section-title">Hromadná blokace (víc hodin najednou)</div>
-    <p class="page-sub" style="margin-top:-6px;">Pro jednu rezervaci nebo krátkou blokaci stačí kliknout přímo do gridu v Rezervacích. Tohle je pro turnaj/akci přes víc hodin.</p>
+    <div class="section-title">Založit akci do Kalendáře</div>
+    <p class="page-sub" style="margin-top:-6px;">Turnaj, přednáška, social, cvičení Zdravý hráč — cokoliv. Zobrazí se v appce Kalendář. Kurt zablokuj jen když akce fyzicky zabírá konkrétní kurt.</p>
     <div class="card" style="display:block;">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
-        <div class="field" style="flex:2;min-width:180px;margin:0;"><label>Název akce</label><input id="blockName" placeholder="např. Letní turnaj"></div>
-        <div class="field" style="flex:1;min-width:160px;margin:0;"><label>Kurt</label><select id="blockCourt"></select></div>
-        <div class="field" style="flex:1;min-width:100px;margin:0;"><label>Od</label><select id="blockFrom"></select></div>
-        <div class="field" style="flex:1;min-width:100px;margin:0;"><label>Do</label><select id="blockTo"></select></div>
-        <button class="btn btn-dark" onclick="createBlock()">Zablokovat</button>
+        <div class="field" style="flex:2;min-width:200px;margin:0;"><label>Název akce</label><input id="eventName" placeholder="např. Přednáška o výživě"></div>
+        <div class="field" style="flex:1;min-width:160px;margin:0;"><label>Kategorie</label>
+          <select id="eventCategory">
+            <option value="turnaj">Turnaj</option>
+            <option value="prednaska">Přednáška</option>
+            <option value="social">Social</option>
+            <option value="cviceni">Cvičení / Zdravý hráč</option>
+            <option value="jine">Jiné</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1;min-width:150px;margin:0;"><label>Datum</label><input type="date" id="eventDate"></div>
+        <div class="field" style="flex:1;min-width:100px;margin:0;"><label>Od</label><select id="eventFrom"></select></div>
+        <div class="field" style="flex:1;min-width:100px;margin:0;"><label>Do</label><select id="eventTo"></select></div>
       </div>
-      <div class="checkbox-row" style="margin-bottom:0;">
-        <input type="checkbox" id="blockAsTournament" checked>
-        <div><div class="cb-title">Zobrazit i v Kalendáři jako turnaj</div><div class="cb-sub">Založí odpovídající akci v appce Kalendář (kategorie „Turnaj"), lidi ji uvidí tam i tady.</div></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;">
+        <div class="field" style="flex:2;min-width:200px;margin:0;"><label>Místo (text, jen pokud neblokuješ kurt)</label><input id="eventLocation" placeholder="např. Klubovna"></div>
+        <div class="field" style="flex:1;min-width:120px;margin:0;"><label>Kapacita</label><input type="number" id="eventCapacity" placeholder="např. 20"></div>
+        <div class="field" style="flex:1;min-width:120px;margin:0;"><label>Cena (Kč)</label><input type="number" id="eventPrice" placeholder="0 = zdarma"></div>
+        <div class="field" style="flex:1;min-width:140px;margin:0;"><label>Cena je za</label>
+          <select id="eventPriceMode">
+            <option value="osoba">osobu</option>
+            <option value="dvojice">dvojici</option>
+          </select>
+        </div>
       </div>
+      <div class="field" style="margin:10px 0 0;"><label>Krátký popis</label><input id="eventDescShort" placeholder="jedna věta pro přehled"></div>
+      <div class="field" style="margin:10px 0 0;"><label>Delší popis (volitelné)</label><textarea id="eventDescLong" rows="3" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;"></textarea></div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="eventBlocksCourt" onchange="document.getElementById('eventCourtFields').style.display=this.checked?'block':'none'">
+        <div><div class="cb-title">Tahle akce zabírá konkrétní kurt</div><div class="cb-sub">Zaškrtni jen pro turnaj/akci přímo na kurtu — zablokuje ho v Rezervacích. Pro přednášku/social/cvičení mimo kurt nech nezaškrtnuté.</div></div>
+      </div>
+      <div id="eventCourtFields" style="display:none;margin-top:10px;">
+        <div class="field" style="min-width:200px;margin:0;"><label>Kurt</label><select id="eventCourt"></select></div>
+      </div>
+
+      <button class="btn btn-dark" style="margin-top:14px;" onclick="createEvent()">Založit akci</button>
     </div>
     <div class="section-title">Všechny rezervace</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
@@ -406,6 +432,35 @@
       <div id="paymentStatusBox"></div>
     </div>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('paymentOverlay')">Zavřít, doplatím později</button>
+  </div>
+</div>
+
+<div class="overlay" id="eventSignupOverlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('eventSignupOverlay')">×</button>
+    <h2 id="signupEventTitle">Přihláška</h2>
+    <p class="modal-sub" id="signupEventMeta"></p>
+    <div class="price-box">
+      <div class="price-row total"><span>Cena</span><span id="signupEventPrice"></span></div>
+    </div>
+    <div class="field" id="signupPartnerRow" style="display:none;">
+      <label>Jméno spoluhráče</label>
+      <input id="signupPartnerName" placeholder="Jana Nováková">
+    </div>
+    <button class="btn btn-primary" style="width:100%;margin-top:10px;" onclick="submitEventSignup()">Přihlásit se</button>
+  </div>
+</div>
+
+<div class="overlay" id="eventPaymentOverlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('eventPaymentOverlay')">×</button>
+    <h2>Platba za přihlášku</h2>
+    <p class="modal-sub">Naskenuj v bankovní appce. Po připsání platby se přihláška potvrdí automaticky (obvykle do 15 minut).</p>
+    <div class="qr-box">
+      <div class="qr-visual" id="eventQrVisual"></div>
+      <div class="qr-meta" id="eventQrMeta"></div>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('eventPaymentOverlay')">Zavřít, doplatím později</button>
   </div>
 </div>
 
@@ -1187,14 +1242,92 @@ async function joinOpenMatch(reservationId){
 async function renderCalendar(){
   const el = document.getElementById('calendarList');
   el.innerHTML = 'Načítání…';
-  const { data, error } = await sb.from('reservations').select('*').eq('type','club_event').gte('date', todayISO()).order('date');
-  const mockNote = `<div class="empty-state" style="margin-bottom:16px;padding:20px;"><div class="em-title">Toto je jen náhled napojení</div>Plný modul Kalendáře zůstává ve stávající appce a přesune se do shellu později. Zde vidíš jen akce, které blokují kurty.</div>`;
-  if(error || !data.length){ el.innerHTML = mockNote + emptyState('Žádné blokace kurtů', 'Založ turnaj v Adminu → propíše se sem i do Rezervací.'); return; }
-  el.innerHTML = mockNote + data.map(r=>{
-    const court = findCourt(r.court_id);
-    return `<div class="card"><div class="info"><b>${r.event_name}</b><div class="meta">${court.locationName} · ${court.name} · ${fmtDate(r.date)} · ${formatHour(r.start_hour)}–${formatHour(r.end_hour)}</div></div></div>`;
+  const { data: events, error } = await sb.from('events').select('*')
+    .eq('status','otevreno').eq('visibility','verejne')
+    .gte('date', todayISO()).order('date');
+  if(error){ el.innerHTML = emptyState('Chyba', error.message); return; }
+  if(!events.length){ el.innerHTML = emptyState('Zatím žádné akce', 'Nové turnaje, přednášky a cvičení se tu objeví, jakmile je klub založí.'); return; }
+
+  const eventIds = events.map(e=>e.id);
+  const { data: regs } = await sb.from('event_registrations').select('*')
+    .in('event_id', eventIds).in('status', ['pending_payment','paid_confirmed']);
+  const regsByEvent = {};
+  (regs||[]).forEach(r=>{ (regsByEvent[r.event_id] = regsByEvent[r.event_id]||[]).push(r); });
+  const myRegByEvent = {};
+  if(profile){ (regs||[]).filter(r=>r.member_id===profile.user_id).forEach(r=>{ myRegByEvent[r.event_id]=r; }); }
+
+  el.innerHTML = events.map(ev=>{
+    const taken = (regsByEvent[ev.id]||[]).length;
+    const full = ev.capacity && taken >= ev.capacity;
+    const myReg = myRegByEvent[ev.id];
+    const priceLabel = ev.is_free || !ev.price ? 'Zdarma' : `${ev.price} Kč / ${ev.price_mode==='dvojice'?'dvojice':'osoba'}`;
+    let actionHtml;
+    if(!profile){
+      actionHtml = `<span class="page-sub" style="margin:0;">Přihlas se pro účast</span>`;
+    } else if(myReg && myReg.status==='paid_confirmed'){
+      actionHtml = `<span class="status-pill paid">✓ Přihlášen${myReg.partner_name?` (s ${myReg.partner_name})`:''}</span>`;
+    } else if(myReg && myReg.status==='pending_payment'){
+      actionHtml = `<button class="btn btn-sm btn-green" onclick='openEventPaymentModal(${JSON.stringify(ev)}, ${JSON.stringify(myReg)})'>Dokončit platbu</button>`;
+    } else if(full){
+      actionHtml = `<span class="status-pill blocked">Plno</span>`;
+    } else {
+      actionHtml = `<button class="btn btn-sm btn-dark" onclick='openEventSignupModal(${JSON.stringify(ev)})'>Přihlásit se</button>`;
+    }
+    return `<div class="card"><div class="info">
+      <b>${ev.name}</b>
+      <div class="meta">${CATEGORY_LABELS[ev.category]||ev.category} · ${fmtDate(ev.date)} · ${(ev.time_from||'').slice(0,5)}–${(ev.time_to||'').slice(0,5)}${ev.location?` · ${ev.location}`:''}</div>
+      ${ev.description_short ? `<div class="meta">${ev.description_short}</div>` : ''}
+      <div class="meta">${priceLabel}${ev.capacity?` · ${taken}/${ev.capacity} přihlášeno`:''}</div>
+    </div><div>${actionHtml}</div></div>`;
   }).join('');
 }
+const CATEGORY_LABELS = { turnaj:'Turnaj', prednaska:'Přednáška', social:'Social', cviceni:'Cvičení', jine:'Akce' };
+
+function openEventSignupModal(ev){
+  if(!profile){ toast('Nejdřív se přihlas'); return; }
+  activeSignupEvent = ev;
+  document.getElementById('signupEventTitle').textContent = ev.name;
+  document.getElementById('signupEventMeta').textContent = `${fmtDate(ev.date)} · ${(ev.time_from||'').slice(0,5)}–${(ev.time_to||'').slice(0,5)}${ev.location?` · ${ev.location}`:''}`;
+  const priceLabel = ev.is_free || !ev.price ? 'Zdarma' : `${ev.price} Kč / ${ev.price_mode==='dvojice'?'dvojici':'osobu'}`;
+  document.getElementById('signupEventPrice').textContent = priceLabel;
+  document.getElementById('signupPartnerRow').style.display = ev.price_mode==='dvojice' ? '' : 'none';
+  document.getElementById('signupPartnerName').value = '';
+  showModal('eventSignupOverlay');
+}
+async function submitEventSignup(){
+  const ev = activeSignupEvent;
+  const partnerName = ev.price_mode==='dvojice' ? document.getElementById('signupPartnerName').value.trim() : null;
+  if(ev.price_mode==='dvojice' && !partnerName){ toast('Vyplň jméno spoluhráče'); return; }
+
+  const amount = ev.is_free ? 0 : Number(ev.price)||0;
+  const { data: reg, error } = await sb.from('event_registrations').insert({
+    club_id: CLUB_ID, event_id: ev.id, member_id: profile.user_id, partner_name: partnerName,
+    amount_due: amount, status: amount===0 ? 'paid_confirmed' : 'pending_payment',
+    paid_at: amount===0 ? new Date().toISOString() : null
+  }).select().single();
+  if(error){ toast('Chyba při přihlašování: '+error.message); return; }
+
+  closeModal('eventSignupOverlay');
+  if(amount===0){
+    toast('Přihlášeno — akce je zdarma');
+    await renderCalendar();
+  } else {
+    await sb.from('payments').insert({
+      club_id: CLUB_ID, event_registration_id: reg.id, amount, variable_symbol: genVS(), status:'created'
+    });
+    openEventPaymentModal(ev, reg);
+    await renderCalendar();
+  }
+}
+async function openEventPaymentModal(ev, reg){
+  const { data: payment } = await sb.from('payments').select('*').eq('event_registration_id', reg.id).maybeSingle();
+  const qr = document.getElementById('eventQrVisual');
+  const msg = `Prihlaska ${ev.name}`;
+  if(payment) renderPaymentQR(qr, payment.amount, payment.variable_symbol, msg); else qr.innerHTML = '';
+  document.getElementById('eventQrMeta').innerHTML = `Účet: <b>${CLUB_ACCOUNT_DISPLAY}</b> · Částka: <b>${payment?payment.amount:reg.amount_due} Kč</b><br>VS: <b>${payment?payment.variable_symbol:'—'}</b> · Zpráva: <b>${msg}</b>`;
+  showModal('eventPaymentOverlay');
+}
+let activeSignupEvent = null;
 
 /* ================= ADMIN: rychlé akce v gridu ================= */
 function openAdminSlotModal(courtId, hour, existing){
@@ -1396,20 +1529,22 @@ async function renderAdmin(){
   await renderMembers();
   await renderPendingMemberships();
 
-  const courtSel = document.getElementById('blockCourt');
+  const courtSel = document.getElementById('eventCourt');
   courtSel.innerHTML = '';
   Object.keys(venuesConfig).length && orderedVenueSlugs().forEach(slug=>{
     const grp = document.createElement('optgroup'); grp.label = venuesConfig[slug].name;
     venuesConfig[slug].courts.forEach(c=>{ const o=document.createElement('option'); o.value=c.id; o.textContent=c.name; grp.appendChild(o); });
     courtSel.appendChild(grp);
   });
-  const fromSel = document.getElementById('blockFrom'); const toSel = document.getElementById('blockTo');
+  const fromSel = document.getElementById('eventFrom'); const toSel = document.getElementById('eventTo');
   fromSel.innerHTML=''; toSel.innerHTML='';
   const allStarts = slotStarts({dayStart:8, dayEnd:21, minDuration:1, slotStep:0.5});
   allStarts.concat([21]).forEach(h=>{
     fromSel.innerHTML += `<option value="${h}">${formatHour(h)}</option>`;
     toSel.innerHTML += `<option value="${h}">${formatHour(h)}</option>`;
   });
+  const eventDateInput = document.getElementById('eventDate');
+  if(eventDateInput && !eventDateInput.value) eventDateInput.value = selectedDate;
 }
 function renderAdminTable(){
   const table = document.getElementById('allTable'); if(!table) return;
@@ -1438,36 +1573,56 @@ async function adminConfirm(id){
   toast(res.series_id ? 'Celá série ručně potvrzena' : 'Rezervace ručně potvrzena');
   await renderAll();
 }
-async function createBlock(){
-  const name = document.getElementById('blockName').value.trim();
-  const courtId = document.getElementById('blockCourt').value;
-  const court = findCourt(courtId);
-  const from = parseFloat(document.getElementById('blockFrom').value);
-  const to = parseFloat(document.getElementById('blockTo').value);
-  const asTournament = document.getElementById('blockAsTournament').checked;
-  if(!name || to<=from){ toast('Vyplň název a platný časový rozsah'); return; }
+async function createEvent(){
+  const name = document.getElementById('eventName').value.trim();
+  const category = document.getElementById('eventCategory').value;
+  const date = document.getElementById('eventDate').value;
+  const from = parseFloat(document.getElementById('eventFrom').value);
+  const to = parseFloat(document.getElementById('eventTo').value);
+  const blocksCourt = document.getElementById('eventBlocksCourt').checked;
+  const courtId = blocksCourt ? document.getElementById('eventCourt').value : null;
+  const locationText = document.getElementById('eventLocation').value.trim();
+  const capacityRaw = document.getElementById('eventCapacity').value;
+  const capacity = capacityRaw ? parseInt(capacityRaw) : null;
+  const priceRaw = document.getElementById('eventPrice').value;
+  const priceVal = priceRaw ? parseFloat(priceRaw) : 0;
+  const priceMode = document.getElementById('eventPriceMode').value;
+  const descShort = document.getElementById('eventDescShort').value.trim();
+  const descLong = document.getElementById('eventDescLong').value.trim();
 
-  let eventId = null;
-  if(asTournament){
-    const toTime = h => String(Math.floor(h)).padStart(2,'0') + ':' + String(Math.round((h-Math.floor(h))*60)).padStart(2,'0') + ':00';
-    const { data: ev, error: evErr } = await sb.from('events').insert({
-      name, category: 'turnaj', date: selectedDate, time_from: toTime(from), time_to: toTime(to),
-      location: `${court.locationName} · ${court.name}`, status: 'otevreno', visibility: 'verejne',
-      organizer: session.user.email
-    }).select().single();
-    if(evErr){ toast('Chyba při zakládání v Kalendáři: '+evErr.message); }
-    else eventId = ev.id;
+  if(!name || !date || to<=from){ toast('Vyplň název, datum a platný časový rozsah'); return; }
+  if(blocksCourt && !courtId){ toast('Vyber kurt, nebo odškrtni blokaci kurtu'); return; }
+
+  const toTime = h => String(Math.floor(h)).padStart(2,'0') + ':' + String(Math.round((h-Math.floor(h))*60)).padStart(2,'0') + ':00';
+  const court = blocksCourt ? findCourt(courtId) : null;
+
+  const { data: ev, error: evErr } = await sb.from('events').insert({
+    name, category, date, time_from: toTime(from), time_to: toTime(to),
+    location: blocksCourt ? `${court.locationName} · ${court.name}` : (locationText || null),
+    description_short: descShort || null, description_long: descLong || null,
+    capacity, price: priceVal, price_mode: priceMode, is_free: priceVal === 0,
+    status: 'otevreno', visibility: 'verejne', organizer: session.user.email
+  }).select().single();
+  if(evErr){ toast('Chyba při zakládání akce: '+evErr.message); return; }
+
+  if(blocksCourt){
+    const { error } = await sb.from('reservations').insert({
+      club_id: CLUB_ID, venue_id: venuesConfig[court.locationSlug].id, court_id: courtId,
+      date, start_hour: from, duration_hours: to-from, end_hour: to,
+      type:'club_event', status:'club_blocked', event_name:name, created_by: session.user.email,
+      source_event_id: ev.id
+    });
+    if(error){ toast('Akce v Kalendáři založena, ale blokace kurtu selhala: '+error.message); return; }
   }
 
-  const { error } = await sb.from('reservations').insert({
-    club_id: CLUB_ID, venue_id: venuesConfig[court.locationSlug].id, court_id: courtId,
-    date: selectedDate, start_hour: from, duration_hours: to-from, end_hour: to,
-    type:'club_event', status:'club_blocked', event_name:name, created_by: session.user.email,
-    source_event_id: eventId
-  });
-  if(error){ toast('Chyba: '+error.message); return; }
-  document.getElementById('blockName').value='';
-  toast(asTournament && eventId ? `Turnaj „${name}" vytvořen — v Rezervacích i Kalendáři` : `Blokace „${name}" vytvořena`);
+  document.getElementById('eventName').value='';
+  document.getElementById('eventDescShort').value='';
+  document.getElementById('eventDescLong').value='';
+  document.getElementById('eventCapacity').value='';
+  document.getElementById('eventPrice').value='';
+  document.getElementById('eventPriceMode').value='osoba';
+  document.getElementById('eventLocation').value='';
+  toast(blocksCourt ? `Akce „${name}" založena — v Kalendáři i Rezervacích` : `Akce „${name}" založena v Kalendáři`);
   await renderAll();
 }
 
