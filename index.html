@@ -87,7 +87,7 @@
   .grid-row:first-child .cell.half{color:#D0D0D0;}
   .court-label{padding:14px 10px;font-family:var(--font-head);font-weight:600;font-size:14px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;background:var(--paper);position:sticky;left:0;z-index:2;}
   .court-label small{font-weight:400;font-size:10px;color:#6E6E6E;text-transform:uppercase;letter-spacing:0.4px;}
-  .cell{border-right:1px solid var(--line);min-width:0;}
+  .cell{border-right:1px solid var(--line);min-width:46px;}
   .slot{height:44px;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;transition:background .1s ease;overflow:hidden;}
   .slot:hover{background:#FDECEC;}
   .slot.free{background:repeating-linear-gradient(135deg, #fff, #fff 6px, #F5F5F5 6px, #F5F5F5 12px);}
@@ -207,7 +207,7 @@
     <div id="productSelector" class="product-grid"></div>
     <div id="allVenuesWrap" style="display:none;">
       <div class="active-product-bar">
-        <button class="back-link" onclick="hideAllVenuesGrid()">‹ Změnit areál</button>
+        <button class="back-link" onclick="hideAllVenuesGrid()">Rezervovat / vybrat areál ›</button>
         <b>Všechny areály</b>
       </div>
       <div class="date-bar">
@@ -1979,6 +1979,9 @@ async function renderAll(){
   const { data: { session: s } } = await sb.auth.getSession();
   session = s;
   if(session) await loadProfile();
+
+  if(isAdmin() && !urlVenue && !currentLocationId){ showAllVenuesGrid(); }
+
   sb.auth.onAuthStateChange(async (event, s2)=>{
     session = s2;
     if(session){ await loadProfile(); } else { profile = null; }
