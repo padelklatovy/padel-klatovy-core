@@ -294,6 +294,23 @@
       <button class="btn btn-dark" style="margin-top:14px;" onclick="createEvent()">Založit akci</button>
     </div>
 
+    <div class="section-title">Obsazenost všech hřišť</div>
+    <div class="date-bar">
+      <div class="date-nav"><button class="icon-btn" id="overviewPrevDay">‹</button><button class="icon-btn" id="overviewNextDay">›</button></div>
+      <div class="date-label" id="overviewDateLabel"></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="date" id="overviewDatePicker" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:14px;background:#fff;">
+        <button class="btn btn-ghost btn-sm" id="overviewTodayBtn">Dnes</button>
+      </div>
+    </div>
+    <div class="grid-scroll" id="adminOverviewGrids">Načítání…</div>
+    <div class="legend">
+      <span class="sw"><span class="box" style="background:repeating-linear-gradient(135deg,#fff,#fff 3px,#F5F5F5 3px,#F5F5F5 6px)"></span>Volné</span>
+      <span class="sw"><span class="box" style="background:var(--taken-bg)"></span>Obsazené</span>
+      <span class="sw"><span class="box" style="background:var(--ink)"></span>Klubová akce / turnaj</span>
+      <span class="sw"><span class="box" style="background:var(--amber)"></span>Open Match (hledá hráče)</span>
+    </div>
+
     <div class="admin-grid" id="adminStats"></div>
     <div class="section-title">Čeká na platbu</div>
     <table class="admin-table" id="pendingTable"></table>
@@ -1504,11 +1521,69 @@ async function adminCreateBlockSingle(courtId, hour){
 
 /* ================= ADMIN dashboard ================= */
 let adminReservationsCache = [];
+const OVERVIEW_ORDER = ['padel-klatovy','beachvolley-klatovy','padel-brandys'];
+async function renderAdminOverview(){
+  const el = document.getElementById('adminOverviewGrids');
+  if(!el) return;
+  document.getElementById('overviewDateLabel').textContent = fmtDate(selectedDate);
+  document.getElementById('overviewDatePicker').value = selectedDate;
+  el.innerHTML = 'Načítání…';
+  const { data: allRes, error } = await sb.from('reservations').select('*').eq('date', selectedDate);
+  if(error){ el.innerHTML = 'Chyba načítání: '+error.message; return; }
+
+  let html = '';
+  OVERVIEW_ORDER.forEach(slug=>{
+    const loc = venuesConfig[slug];
+    if(!loc) return;
+    const starts = slotStarts(loc);
+    const venueRes = allRes.filter(r=>r.venue_id===loc.id && !['cancelled_by_user','cancelled_by_admin'].includes(r.status));
+    html += `<div style="font-weight:700;font-size:15px;margin:20px 0 8px;">${loc.name}</div>`;
+    html += `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},1fr);"><div class="cell court-label" style="background:var(--ink);color:#fff;"></div>`;
+    starts.forEach(s => html += `<div class="cell ${s%1!==0?'half':''}">${formatHour(s)}</div>`);
+    html += `</div>`;
+    loc.courts.forEach(court=>{
+      html += `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},1fr);"><div class="court-label">${court.name}<small>${court.sub||''}</small></div>`;
+      let i=0;
+      while(i<starts.length){
+        const s = starts[i];
+        const r = venueRes.find(rr => rr.court_id===court.id && s >= rr.start_hour && s < rr.end_hour);
+        if(r && r.start_hour === s){
+          const span = Math.max(1, Math.round((r.end_hour - r.start_hour) * (1/loc.slotStep)));
+          let cls='taken', tag='Obsazeno';
+          if(r.status==='club_blocked'){ cls='event'; tag = r.event_name||'Akce'; }
+          else if(r.is_open_match && r.status==='paid_confirmed'){ cls='openmatch'; tag='Open Match'; }
+          else { cls='taken'; tag = r.organizer_name || (r.status==='pending_payment'?'Čeká platba':'Obsazeno'); }
+          html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" onclick="openOverviewSlot('${slug}','${court.id}',${s})"><span class="tag">${tag}</span></div></div>`;
+          i += span;
+        } else {
+          html += `<div class="cell"><div class="slot free" onclick="openOverviewSlot('${slug}','${court.id}',${s})"></div></div>`;
+          i += 1;
+        }
+      }
+      html += `</div>`;
+    });
+  });
+  el.innerHTML = html;
+}
+async function openOverviewSlot(slug, courtId, hour){
+  currentLocationId = slug;
+  await loadGridReservations();
+  openSlot(courtId, hour);
+}
+document.getElementById('overviewPrevDay').onclick = ()=>{ shiftOverviewDate(-1); };
+document.getElementById('overviewNextDay').onclick = ()=>{ shiftOverviewDate(1); };
+document.getElementById('overviewTodayBtn').onclick = ()=>{ selectedDate = todayISO(); renderAdminOverview(); };
+document.getElementById('overviewDatePicker').onchange = (e)=>{ if(e.target.value){ selectedDate = e.target.value; renderAdminOverview(); } };
+function shiftOverviewDate(delta){
+  const d = new Date(selectedDate+'T00:00:00'); d.setDate(d.getDate()+delta);
+  selectedDate = toLocalISODate(d); renderAdminOverview();
+}
 async function renderAdmin(){
   if(!isAdmin()){
     document.getElementById('view-admin').innerHTML = `<h1 class="page-title">Admin</h1><div class="empty-state"><div class="em-title">Přístup jen pro adminy</div>Přihlas se účtem s rolí admin (nastaví se přímo v tabulce member_profiles).</div>`;
     return;
   }
+  await renderAdminOverview();
   const { data, error } = await sb.from('reservations').select('*').order('date',{ascending:false});
   if(error){ toast('Chyba: '+error.message); return; }
   adminReservationsCache = data;
