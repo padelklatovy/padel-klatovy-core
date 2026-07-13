@@ -203,7 +203,29 @@
   <section class="view active" id="view-reservations">
     <h1 class="page-title">Rezervace kurtů</h1>
     <p class="page-sub" id="reservationsIntro">Vyber si hřiště / lokalitu, kde chceš rezervovat.</p>
+    <button class="btn btn-ghost btn-sm" id="allVenuesToggleBtn" style="display:none;margin-bottom:14px;" onclick="showAllVenuesGrid()">📋 Zobrazit všechny areály najednou</button>
     <div id="productSelector" class="product-grid"></div>
+    <div id="allVenuesWrap" style="display:none;">
+      <div class="active-product-bar">
+        <button class="back-link" onclick="hideAllVenuesGrid()">‹ Změnit areál</button>
+        <b>Všechny areály</b>
+      </div>
+      <div class="date-bar">
+        <div class="date-nav"><button class="icon-btn" id="allPrevDay">‹</button><button class="icon-btn" id="allNextDay">›</button></div>
+        <div class="date-label" id="allDateLabel"></div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="date" id="allDatePicker" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:14px;background:#fff;">
+          <button class="btn btn-ghost btn-sm" id="allTodayBtn">Dnes</button>
+        </div>
+      </div>
+      <div class="grid-scroll"><div class="court-grid" id="reservationsAllVenuesGrids">Načítání…</div></div>
+      <div class="legend">
+        <span class="sw"><span class="box" style="background:repeating-linear-gradient(135deg,#fff,#fff 3px,#F5F5F5 3px,#F5F5F5 6px)"></span>Volné</span>
+        <span class="sw"><span class="box" style="background:var(--taken-bg)"></span>Obsazené</span>
+        <span class="sw"><span class="box" style="background:var(--ink)"></span>Klubová akce / turnaj</span>
+        <span class="sw"><span class="box" style="background:var(--amber)"></span>Open Match (hledá hráče)</span>
+      </div>
+    </div>
     <div id="gridWrap" style="display:none;">
       <div class="active-product-bar">
         <button class="back-link" onclick="backToProducts()">‹ Změnit areál</button>
@@ -225,6 +247,7 @@
         <span class="sw"><span class="box" style="background:var(--amber)"></span>Open Match (hledá hráče)</span>
         <span class="sw"><span class="box" style="background:var(--green)"></span>Moje rezervace</span>
       </div>
+
     </div>
   </section>
 
@@ -305,7 +328,7 @@
         <button class="btn btn-ghost btn-sm" id="overviewTodayBtn">Dnes</button>
       </div>
     </div>
-    <div class="grid-scroll" id="adminOverviewGrids">Načítání…</div>
+    <div class="grid-scroll court-grid" id="adminOverviewGrids">Načítání…</div>
     <div class="legend">
       <span class="sw"><span class="box" style="background:repeating-linear-gradient(135deg,#fff,#fff 3px,#F5F5F5 3px,#F5F5F5 6px)"></span>Volné</span>
       <span class="sw"><span class="box" style="background:var(--taken-bg)"></span>Obsazené</span>
@@ -638,6 +661,7 @@ function renderHeader(){
   document.querySelector('[data-view="admin"]').style.display = isAdmin() ? '' : 'none';
   document.getElementById('barTab').style.display = profile ? '' : 'none';
   document.getElementById('createEventTab').style.display = isAdmin() ? '' : 'none';
+  document.getElementById('allVenuesToggleBtn').style.display = isAdmin() ? '' : 'none';
 }
 function toggleProfileMenu(e){ e.stopPropagation(); document.getElementById('profileMenu').classList.toggle('show'); }
 async function goToCreateEvent(){
@@ -1553,15 +1577,7 @@ async function adminCreateBlockSingle(courtId, hour){
 /* ================= ADMIN dashboard ================= */
 let adminReservationsCache = [];
 const OVERVIEW_ORDER = ['padel-klatovy','beachvolley-klatovy','padel-brandys'];
-async function renderAdminOverview(){
-  const el = document.getElementById('adminOverviewGrids');
-  if(!el) return;
-  document.getElementById('overviewDateLabel').textContent = fmtDate(selectedDate);
-  document.getElementById('overviewDatePicker').value = selectedDate;
-  el.innerHTML = 'Načítání…';
-  const { data: allRes, error } = await sb.from('reservations').select('*').eq('date', selectedDate);
-  if(error){ el.innerHTML = 'Chyba načítání: '+error.message; return; }
-
+function buildAllVenuesGridsHtml(allRes){
   let html = '';
   OVERVIEW_ORDER.forEach(slug=>{
     const loc = venuesConfig[slug];
@@ -1583,7 +1599,8 @@ async function renderAdminOverview(){
           let cls='taken', tag='Obsazeno';
           if(r.status==='club_blocked'){ cls='event'; tag = r.event_name||'Akce'; }
           else if(r.is_open_match && r.status==='paid_confirmed'){ cls='openmatch'; tag='Open Match'; }
-          else { cls='taken'; tag = r.organizer_name || (r.status==='pending_payment'?'Čeká platba':'Obsazeno'); }
+          else if(profile && r.member_id===profile.user_id){ cls='mine'; tag = r.status==='pending_payment' ? 'Čeká platba' : 'Moje'; }
+          else { cls='taken'; tag = isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; }
           html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" onclick="openOverviewSlot('${slug}','${court.id}',${s})"><span class="tag">${tag}</span></div></div>`;
           i += span;
         } else {
@@ -1594,27 +1611,56 @@ async function renderAdminOverview(){
       html += `</div>`;
     });
   });
-  el.innerHTML = html;
+  return html;
+}
+async function renderAllVenuesOverview(){
+  const targets = ['adminOverviewGrids','reservationsAllVenuesGrids'].map(id=>document.getElementById(id)).filter(Boolean);
+  if(!targets.length) return;
+  targets.forEach(el=>{ el.innerHTML = 'Načítání…'; });
+  if(document.getElementById('overviewDateLabel')){ document.getElementById('overviewDateLabel').textContent = fmtDate(selectedDate); document.getElementById('overviewDatePicker').value = selectedDate; }
+  if(document.getElementById('allDateLabel')){ document.getElementById('allDateLabel').textContent = fmtDate(selectedDate); document.getElementById('allDatePicker').value = selectedDate; }
+
+  const { data: allRes, error } = await sb.from('reservations').select('*').eq('date', selectedDate);
+  if(error){ targets.forEach(el=>{ el.innerHTML = 'Chyba načítání: '+error.message; }); return; }
+  const html = buildAllVenuesGridsHtml(allRes);
+  targets.forEach(el=>{ el.innerHTML = html; });
 }
 async function openOverviewSlot(slug, courtId, hour){
   currentLocationId = slug;
   await loadGridReservations();
   openSlot(courtId, hour);
 }
-document.getElementById('overviewPrevDay').onclick = ()=>{ shiftOverviewDate(-1); };
-document.getElementById('overviewNextDay').onclick = ()=>{ shiftOverviewDate(1); };
-document.getElementById('overviewTodayBtn').onclick = ()=>{ selectedDate = todayISO(); renderAdminOverview(); };
-document.getElementById('overviewDatePicker').onchange = (e)=>{ if(e.target.value){ selectedDate = e.target.value; renderAdminOverview(); } };
 function shiftOverviewDate(delta){
   const d = new Date(selectedDate+'T00:00:00'); d.setDate(d.getDate()+delta);
-  selectedDate = toLocalISODate(d); renderAdminOverview();
+  selectedDate = toLocalISODate(d); renderAllVenuesOverview();
+}
+if(document.getElementById('overviewPrevDay')){
+  document.getElementById('overviewPrevDay').onclick = ()=>{ shiftOverviewDate(-1); };
+  document.getElementById('overviewNextDay').onclick = ()=>{ shiftOverviewDate(1); };
+  document.getElementById('overviewTodayBtn').onclick = ()=>{ selectedDate = todayISO(); renderAllVenuesOverview(); };
+  document.getElementById('overviewDatePicker').onchange = (e)=>{ if(e.target.value){ selectedDate = e.target.value; renderAllVenuesOverview(); } };
+}
+document.getElementById('allPrevDay').onclick = ()=>{ shiftOverviewDate(-1); };
+document.getElementById('allNextDay').onclick = ()=>{ shiftOverviewDate(1); };
+document.getElementById('allTodayBtn').onclick = ()=>{ selectedDate = todayISO(); renderAllVenuesOverview(); };
+document.getElementById('allDatePicker').onchange = (e)=>{ if(e.target.value){ selectedDate = e.target.value; renderAllVenuesOverview(); } };
+function showAllVenuesGrid(){
+  document.getElementById('productSelector').style.display = 'none';
+  document.getElementById('allVenuesWrap').style.display = '';
+  document.getElementById('reservationsIntro').style.display = 'none';
+  renderAllVenuesOverview();
+}
+function hideAllVenuesGrid(){
+  document.getElementById('allVenuesWrap').style.display = 'none';
+  document.getElementById('productSelector').style.display = '';
+  document.getElementById('reservationsIntro').style.display = '';
 }
 async function renderAdmin(){
   if(!isAdmin()){
     document.getElementById('view-admin').innerHTML = `<h1 class="page-title">Admin</h1><div class="empty-state"><div class="em-title">Přístup jen pro adminy</div>Přihlas se účtem s rolí admin (nastaví se přímo v tabulce member_profiles).</div>`;
     return;
   }
-  await renderAdminOverview();
+  await renderAllVenuesOverview();
   const { data, error } = await sb.from('reservations').select('*').order('date',{ascending:false});
   if(error){ toast('Chyba: '+error.message); return; }
   adminReservationsCache = data;
