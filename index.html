@@ -66,6 +66,8 @@
   .product-body{padding:32px 16px 16px;display:flex;flex-direction:column;gap:10px;flex:1;}
   .product-body b{font-family:var(--font-head);font-size:19px;font-weight:600;}
   .product-body .p-meta{font-size:12px;color:#6E6E6E;text-transform:uppercase;letter-spacing:0.3px;}
+  .occ-bar-wrap{width:100%;height:5px;background:var(--paper-dim);border-radius:4px;overflow:hidden;margin:2px 0 -2px;}
+  .occ-bar{height:100%;border-radius:4px;transition:width .3s;}
   .back-link{background:none;border:none;color:var(--green);font-family:var(--font-head);font-weight:600;font-size:14px;cursor:pointer;padding:0;margin-bottom:14px;display:inline-flex;align-items:center;gap:4px;}
   .back-link:hover{text-decoration:underline;}
   .active-product-bar{display:flex;align-items:center;justify-content:space-between;background:var(--paper-dim);border-radius:10px;padding:10px 16px;margin-bottom:14px;}
@@ -680,6 +682,27 @@ async function loadVenues(){
   });
 }
 
+let todayOccupancy = {};
+async function loadTodayOccupancy(){
+  const idToSlug = {};
+  Object.keys(venuesConfig).forEach(slug=>{ idToSlug[venuesConfig[slug].id] = slug; });
+
+  const { data, error } = await sb.from('reservations').select('venue_id, start_hour, end_hour, status')
+    .eq('date', todayISO())
+    .not('status', 'in', '(cancelled_by_user,cancelled_by_admin)');
+  todayOccupancy = {};
+  Object.keys(venuesConfig).forEach(slug=>{
+    const loc = venuesConfig[slug];
+    todayOccupancy[slug] = { occupiedHours: 0, totalHours: loc.courts.length * (loc.dayEnd - loc.dayStart) };
+  });
+  if(error || !data) return;
+  data.forEach(r=>{
+    const slug = idToSlug[r.venue_id];
+    if(!slug || !todayOccupancy[slug]) return;
+    todayOccupancy[slug].occupiedHours += (Number(r.end_hour) - Number(r.start_hour));
+  });
+}
+
 /* ================= PRODUKTOVÝ VÝBĚR ================= */
 // Soubory fotek/log — nahraj je vedle index.html na GitHub pod přesně těmito názvy.
 // Dokud tam nejsou, appka to sama nahradí barevným pozadím se jménem sportu (nic se nerozbije).
@@ -693,6 +716,13 @@ function renderProductSelector(){
   el.innerHTML = orderedVenueSlugs().map(slug=>{
     const loc = venuesConfig[slug];
     const media = VENUE_MEDIA[slug] || {};
+    const occ = todayOccupancy[slug];
+    let occHtml = '';
+    if(occ && occ.totalHours > 0){
+      const pct = Math.round(occ.occupiedHours / occ.totalHours * 100);
+      const color = pct >= 80 ? 'var(--red)' : pct >= 40 ? 'var(--amber)' : 'var(--green)';
+      occHtml = `<div class="occ-bar-wrap"><div class="occ-bar" style="width:${Math.min(pct,100)}%;background:${color};"></div></div><span class="p-meta">Dnes obsazeno: <b style="color:${color};">${pct} %</b></span>`;
+    }
     return `<div class="product-card">
       <div class="product-photo-wrap">
         <div class="product-photo-fallback" id="fallback-${slug}">${loc.sport}</div>
@@ -702,6 +732,7 @@ function renderProductSelector(){
       <div class="product-body">
         <b>${loc.name}</b>
         <span class="p-meta">${loc.courts.length} kurty · ${loc.priceHour} Kč/hod · min. ${loc.minDuration} h</span>
+        ${occHtml}
         <button class="btn btn-primary" onclick="selectProduct('${slug}')">Rezervovat</button>
       </div>
     </div>`;
@@ -720,7 +751,7 @@ function backToProducts(){
   document.getElementById('productSelector').style.display = '';
   document.getElementById('gridWrap').style.display = 'none';
   document.getElementById('reservationsIntro').style.display = '';
-  renderProductSelector();
+  loadTodayOccupancy().then(renderProductSelector);
 }
 
 /* ================= GRID ================= */
@@ -1886,6 +1917,7 @@ async function renderAll(){
 
 (async function init(){
   await loadVenues();
+  await loadTodayOccupancy();
   renderProductSelector();
 
   const urlVenue = new URLSearchParams(window.location.search).get('venue');
