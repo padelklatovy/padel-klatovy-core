@@ -1498,11 +1498,27 @@ async function openAdminSlotModal(courtId, hour, existing){
     const who = existing.organizer_name || existing.event_name || '—';
     const statusLabel = {pending_payment:'Čeká na platbu', paid_confirmed:'Zaplaceno', club_blocked:'Blokace/akce'}[existing.status] || existing.status;
     let seriesRangeHtml = '';
+    let seriesShortenHtml = '';
     if(existing.series_id){
       const { data: seriesRows } = await sb.from('reservations').select('date').eq('series_id', existing.series_id).order('date');
       if(seriesRows && seriesRows.length){
         const first = seriesRows[0].date, last = seriesRows[seriesRows.length-1].date;
         seriesRangeHtml = `<div class="price-row"><span>Série „${existing.series_name}"</span><span>${fmtDate(first)} – ${fmtDate(last)} (${seriesRows.length}×)</span></div>`;
+        seriesShortenHtml = `
+      <div class="field" style="margin-top:10px;">
+        <label>Zkrátit sérii — zrušit vše po tomto datu (termíny do a včetně tohoto data zůstanou)</label>
+        <div style="display:flex;gap:8px;">
+          <input type="date" id="seriesNewEndDate" value="${last}" max="${last}" min="${selectedDate}" style="flex:1;">
+          <button class="btn btn-sm btn-ghost" style="color:var(--red-deep);border-color:var(--red-deep);" onclick="shortenSeries('${existing.series_id}')">Zkrátit sérii</button>
+        </div>
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label>Prodloužit sérii — přidat další termíny (stejný den, čas i kurt) až do</label>
+        <div style="display:flex;gap:8px;">
+          <input type="date" id="seriesExtendUntil" min="${last}" style="flex:1;">
+          <button class="btn btn-sm btn-dark" onclick="extendSeries('${existing.series_id}')">Prodloužit sérii</button>
+        </div>
+      </div>`;
       }
     }
     box.innerHTML = `
@@ -1513,6 +1529,7 @@ async function openAdminSlotModal(courtId, hour, existing){
         ${seriesRangeHtml}
         ${existing.admin_note ? `<div class="price-row"><span>Poznámka</span><span>${existing.admin_note}</span></div>` : ''}
       </div>
+      ${seriesShortenHtml}
       <div class="field" style="margin-top:10px;">
         <label>${existing.admin_note ? 'Upravit poznámku' : 'Přidat poznámku'} (např. MultiSport — vráceno hotově)</label>
         <div style="display:flex;gap:8px;">
@@ -2023,6 +2040,71 @@ function renderSeriesAdmin(){
       </tr>`;
     }).join('')}
   ` : `<tr><td style="padding:16px;color:#948e83;">Zatím žádné aktivní série</td></tr>`;
+}
+async function extendSeries(seriesId){
+  const newUntilStr = document.getElementById('seriesExtendUntil').value;
+  if(!newUntilStr){ toast('Vyber nové datum, do kdy sérii prodloužit'); return; }
+
+  const { data: seriesRows } = await sb.from('reservations').select('*').eq('series_id', seriesId).order('date',{ascending:false}).limit(1);
+  if(!seriesRows || !seriesRows.length){ toast('Sérii se nepodařilo najít'); return; }
+  const lastRow = seriesRows[0];
+
+  const dates = [];
+  let d = new Date(lastRow.date+'T00:00:00'); d.setDate(d.getDate()+7);
+  const until = new Date(newUntilStr+'T00:00:00');
+  while(d <= until){ dates.push(toLocalISODate(d)); d.setDate(d.getDate()+7); }
+  if(!dates.length){ toast('Nové datum musí být aspoň o týden později než poslední termín série'); return; }
+  if(dates.length > 60){ toast('Max. 60 nových termínů najednou (bezpečnostní pojistka)'); return; }
+
+  const { data: conflicting } = await sb.from('reservations').select('date,start_hour,end_hour,status')
+    .eq('court_id', lastRow.court_id).in('date', dates);
+  const blocked = new Set((conflicting||[]).filter(r=>!['cancelled_by_user','cancelled_by_admin'].includes(r.status))
+    .filter(r => lastRow.start_hour < r.end_hour && lastRow.end_hour > r.start_hour)
+    .map(r=>r.date));
+  const okDates = dates.filter(dt=>!blocked.has(dt));
+  if(!okDates.length){ toast('Všechny nové termíny jsou obsazené'); return; }
+
+  const rows = okDates.map(dt => ({
+    club_id: lastRow.club_id, venue_id: lastRow.venue_id, court_id: lastRow.court_id,
+    member_id: lastRow.member_id, organizer_name: lastRow.organizer_name, organizer_phone: lastRow.organizer_phone,
+    date: dt, start_hour: lastRow.start_hour, duration_hours: lastRow.duration_hours, end_hour: lastRow.end_hour,
+    type: lastRow.type, status: Number(lastRow.amount_due)===0 ? 'paid_confirmed' : 'pending_payment',
+    base_price: lastRow.base_price, discount_applied: lastRow.discount_applied, amount_due: lastRow.amount_due,
+    players: lastRow.players, is_open_match: false,
+    created_by: session.user.email,
+    paid_at: Number(lastRow.amount_due)===0 ? new Date().toISOString() : null,
+    series_id: seriesId, series_name: lastRow.series_name
+  }));
+
+  const { data: inserted, error } = await sb.from('reservations').insert(rows).select();
+  if(error){ toast('Chyba: '+error.message); return; }
+
+  const pendingOnes = inserted.filter(r=>r.status==='pending_payment');
+  if(pendingOnes.length){
+    await sb.from('payments').insert(pendingOnes.map(r=>({
+      club_id: CLUB_ID, reservation_id: r.id, amount: r.amount_due, variable_symbol: genVS(), status:'created'
+    })));
+  }
+
+  const skippedNote = blocked.size ? ` (${blocked.size} termínů přeskočeno — obsazeno)` : '';
+  toast(`Série prodloužena o ${okDates.length} termínů${skippedNote}`);
+  closeModal('adminSlotOverlay');
+  await renderAll();
+}
+async function shortenSeries(seriesId){
+  const newEnd = document.getElementById('seriesNewEndDate').value;
+  if(!newEnd){ toast('Vyber nové poslední datum'); return; }
+  const status = 'cancelled_by_admin';
+  const { data, error } = await sb.from('reservations')
+    .update({status})
+    .eq('series_id', seriesId)
+    .gt('date', newEnd)
+    .not('status','in','(cancelled_by_user,cancelled_by_admin)')
+    .select('id');
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast(`Série zkrácena — zrušeno ${data.length} termínů po ${fmtDate(newEnd)}`);
+  closeModal('adminSlotOverlay');
+  await renderAll();
 }
 async function cancelSeries(seriesId){
   const status = isAdmin() ? 'cancelled_by_admin' : 'cancelled_by_user';
