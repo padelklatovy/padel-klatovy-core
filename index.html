@@ -99,9 +99,11 @@
   .slot.taken .tag{color:var(--taken-text);}
   .slot.closed{background:repeating-linear-gradient(135deg, #E8E8E8, #E8E8E8 4px, #DDD 4px, #DDD 8px);cursor:not-allowed;}
   .slot.closed:hover{transform:none;box-shadow:none;background:repeating-linear-gradient(135deg, #E8E8E8, #E8E8E8 4px, #DDD 4px, #DDD 8px);}
-  .slot.taken:hover, .slot.event:hover{transform:none;box-shadow:none;}
+  .slot.taken:hover, .slot.event:hover, .slot.freebie:hover{transform:none;box-shadow:none;}
   .slot.closed .tag{color:#8A8A8A;font-style:italic;}
   .slot.openmatch{background:var(--amber);cursor:pointer;}
+  .slot.freebie{background:#8B6FEA;cursor:not-allowed;}
+  .slot.freebie .tag{color:#fff;}
   .slot.openmatch .tag{color:#fff;}
   .slot.openmatch:hover{filter:brightness(1.08);}
   .slot.mine:hover, .slot.event:hover, .slot.taken:hover{filter:brightness(1.05);}
@@ -230,6 +232,7 @@
         <span class="sw"><span class="box" style="background:var(--taken-bg)"></span>Obsazené</span>
         <span class="sw"><span class="box" style="background:var(--ink)"></span>Klubová akce / turnaj</span>
         <span class="sw"><span class="box" style="background:var(--amber)"></span>Open Match (hledá hráče)</span>
+        <span class="sw legend-admin-only" style="display:none;"><span class="box" style="background:#8B6FEA"></span>Zdarma (admin)</span>
       </div>
     </div>
     <div id="gridWrap" style="display:none;">
@@ -251,6 +254,7 @@
         <span class="sw"><span class="box" style="background:var(--taken-bg)"></span>Obsazené</span>
         <span class="sw"><span class="box" style="background:var(--ink)"></span>Klubová akce / turnaj</span>
         <span class="sw"><span class="box" style="background:var(--amber)"></span>Open Match (hledá hráče)</span>
+        <span class="sw legend-admin-only" style="display:none;"><span class="box" style="background:#8B6FEA"></span>Zdarma (admin)</span>
         <span class="sw"><span class="box" style="background:var(--green)"></span>Moje rezervace</span>
       </div>
 
@@ -340,6 +344,7 @@
       <span class="sw"><span class="box" style="background:var(--taken-bg)"></span>Obsazené</span>
       <span class="sw"><span class="box" style="background:var(--ink)"></span>Klubová akce / turnaj</span>
       <span class="sw"><span class="box" style="background:var(--amber)"></span>Open Match (hledá hráče)</span>
+        <span class="sw legend-admin-only" style="display:none;"><span class="box" style="background:#8B6FEA"></span>Zdarma (admin)</span>
     </div>
 
     <div class="section-title">Správa kurtů</div>
@@ -707,6 +712,7 @@ function renderHeader(){
   document.getElementById('barTab').style.display = profile ? '' : 'none';
   document.getElementById('createEventTab').style.display = isAdmin() ? '' : 'none';
   document.getElementById('allVenuesToggleBtn').style.display = isAdmin() ? '' : 'none';
+  document.querySelectorAll('.legend-admin-only').forEach(el=>{ el.style.display = isAdmin() ? '' : 'none'; });
 }
 function toggleProfileMenu(e){ e.stopPropagation(); document.getElementById('profileMenu').classList.toggle('show'); }
 async function goToCreateEvent(){
@@ -890,6 +896,7 @@ async function renderGrid(){
         if(r.status==='club_blocked'){ cls='event'; tag = r.event_name||'Akce'; clickable = isAdmin(); }
         else if(r.is_open_match && r.status==='paid_confirmed'){ cls='openmatch'; tag = 'Open Match'; }
         else if(profile && r.member_id===profile.user_id){ cls='mine'; tag = r.status==='pending_payment' ? 'Čeká platba' : 'Moje'; }
+        else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = `${r.organizer_name || 'Obsazeno'} · Zdarma`; clickable = true; }
         else { cls='taken'; tag = isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; clickable = isAdmin(); }
         html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" ${clickable?`onclick="openSlot('${court.id}',${s})"`:''}><span class="tag">${tag}</span></div></div>`;
         i += span;
@@ -1731,6 +1738,7 @@ function buildAllVenuesGridsHtml(allRes){
           if(r.status==='club_blocked'){ cls='event'; tag = r.event_name||'Akce'; }
           else if(r.is_open_match && r.status==='paid_confirmed'){ cls='openmatch'; tag='Open Match'; }
           else if(profile && r.member_id===profile.user_id){ cls='mine'; tag = r.status==='pending_payment' ? 'Čeká platba' : 'Moje'; }
+          else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = `${r.organizer_name || 'Obsazeno'} · Zdarma`; }
           else { cls='taken'; tag = isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; }
           html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" onclick="openOverviewSlot('${slug}','${court.id}',${s})"><span class="tag">${tag}</span></div></div>`;
           i += span;
