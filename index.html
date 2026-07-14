@@ -1480,7 +1480,7 @@ async function openEventPaymentModal(ev, reg){
 let activeSignupEvent = null;
 
 /* ================= ADMIN: rychlé akce v gridu ================= */
-function openAdminSlotModal(courtId, hour, existing){
+async function openAdminSlotModal(courtId, hour, existing){
   const loc = activeLoc();
   const court = loc.courts.find(c=>c.id===courtId);
   document.getElementById('adminSlotSub').textContent = `${loc.name} · ${court.name} · ${fmtDate(selectedDate)} · ${formatHour(hour)}`;
@@ -1489,11 +1489,20 @@ function openAdminSlotModal(courtId, hour, existing){
   if(existing){
     const who = existing.organizer_name || existing.event_name || '—';
     const statusLabel = {pending_payment:'Čeká na platbu', paid_confirmed:'Zaplaceno', club_blocked:'Blokace/akce'}[existing.status] || existing.status;
+    let seriesRangeHtml = '';
+    if(existing.series_id){
+      const { data: seriesRows } = await sb.from('reservations').select('date').eq('series_id', existing.series_id).order('date');
+      if(seriesRows && seriesRows.length){
+        const first = seriesRows[0].date, last = seriesRows[seriesRows.length-1].date;
+        seriesRangeHtml = `<div class="price-row"><span>Série „${existing.series_name}"</span><span>${fmtDate(first)} – ${fmtDate(last)} (${seriesRows.length}×)</span></div>`;
+      }
+    }
     box.innerHTML = `
       <div class="price-box" style="margin-top:0;">
         <div class="price-row"><span>Kdo / co</span><span><b>${who}</b></span></div>
         <div class="price-row"><span>Čas</span><span>${formatHour(existing.start_hour)}–${formatHour(existing.end_hour)}</span></div>
         <div class="price-row"><span>Stav</span><span>${statusLabel}</span></div>
+        ${seriesRangeHtml}
         ${existing.admin_note ? `<div class="price-row"><span>Poznámka</span><span>${existing.admin_note}</span></div>` : ''}
       </div>
       <div class="field" style="margin-top:10px;">
