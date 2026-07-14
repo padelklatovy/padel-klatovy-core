@@ -1634,8 +1634,9 @@ function renderCourtsManageTable(){
   tbl.innerHTML = `<thead><tr><th>Areál</th><th>Kurt</th><th>Stav</th><th>Otevřeno od</th><th>Otevřeno do</th></tr></thead><tbody>${rows}</tbody>`;
 }
 async function updateCourtActive(courtId, checked){
-  const { error } = await sb.from('courts').update({ is_active: checked }).eq('id', courtId);
+  const { data, error } = await sb.from('courts').update({ is_active: checked }).eq('id', courtId).select('id');
   if(error){ toast('Chyba: '+error.message); return; }
+  if(!data || data.length===0){ toast('Nepodařilo se uložit — zkontroluj oprávnění (RLS)'); return; }
   toast(checked ? 'Kurt je aktivní' : 'Kurt je mimo provoz');
   await loadVenues();
   renderCourtsManageTable();
@@ -1644,8 +1645,9 @@ async function updateCourtActive(courtId, checked){
 }
 async function updateCourtHours(courtId, field, value){
   const payload = { [field]: value === '' ? null : Number(value) };
-  const { error } = await sb.from('courts').update(payload).eq('id', courtId);
+  const { data, error } = await sb.from('courts').update(payload).eq('id', courtId).select('id');
   if(error){ toast('Chyba: '+error.message); return; }
+  if(!data || data.length===0){ toast('Nepodařilo se uložit — zkontroluj oprávnění (RLS)'); return; }
   toast('Provozní doba uložena');
   await loadVenues();
   renderCourtsManageTable();
