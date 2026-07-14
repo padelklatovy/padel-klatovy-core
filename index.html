@@ -79,24 +79,29 @@
   .icon-btn{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;}
   .icon-btn:hover{background:var(--paper-dim);}
 
-  .grid-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff;}
+  .grid-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--paper-dim);box-shadow:0 1px 3px rgba(0,0,0,0.06);padding:2px;}
   .court-grid{width:100%;}
-  .grid-row{display:grid;border-top:1px solid var(--line);}
-  .grid-row:first-child{border-top:none;background:var(--ink);}
-  .grid-row:first-child .cell{color:#fff;font-family:var(--font-head);font-size:9px;text-align:center;padding:8px 0;font-weight:600;}
-  .grid-row:first-child .cell.half{color:#D0D0D0;}
-  .court-label{padding:14px 10px;font-family:var(--font-head);font-weight:600;font-size:14px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;background:var(--paper);position:sticky;left:0;z-index:2;}
+  .grid-row{display:grid;column-gap:2px;margin-bottom:2px;}
+  .grid-row:first-child{background:var(--ink);border-radius:8px 8px 0 0;margin-bottom:4px;border-bottom:2px solid var(--red);}
+  .grid-row:first-child .cell{color:#fff;font-family:var(--font-head);font-size:9px;text-align:center;padding:9px 0;font-weight:600;letter-spacing:0.3px;}
+  .grid-row:first-child .cell.half{color:#8A8A8A;}
+  .court-label{padding:14px 10px;font-family:var(--font-head);font-weight:600;font-size:14px;border-radius:8px 0 0 8px;display:flex;flex-direction:column;justify-content:center;background:#fff;position:sticky;left:0;z-index:2;}
   .court-label small{font-weight:400;font-size:10px;color:#6E6E6E;text-transform:uppercase;letter-spacing:0.4px;}
-  .cell{border-right:1px solid var(--line);min-width:34px;}
-  .slot{height:44px;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;transition:background .1s ease;overflow:hidden;}
-  .slot:hover{background:#FDECEC;}
-  .slot.free{background:repeating-linear-gradient(135deg, #fff, #fff 6px, #F5F5F5 6px, #F5F5F5 12px);}
+  .cell{min-width:34px;background:#fff;}
+  .grid-row:first-child .cell{background:transparent;}
+  .slot{height:44px;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;transition:transform .12s ease,box-shadow .12s ease;overflow:hidden;border-radius:6px;}
+  .slot:hover{transform:scale(1.03);box-shadow:0 2px 6px rgba(0,0,0,0.12);z-index:1;background:#FDECEC;}
+  .slot.free{background:#fff;}
   .slot.mine{background:var(--green);}
   .slot.mine .tag{color:#fff;}
   .slot.event{background:var(--ink);cursor:not-allowed;}
   .slot.event .tag{color:#fff;}
   .slot.taken{background:var(--taken-bg);cursor:not-allowed;}
   .slot.taken .tag{color:var(--taken-text);}
+  .slot.closed{background:repeating-linear-gradient(135deg, #E8E8E8, #E8E8E8 4px, #DDD 4px, #DDD 8px);cursor:not-allowed;}
+  .slot.closed:hover{transform:none;box-shadow:none;background:repeating-linear-gradient(135deg, #E8E8E8, #E8E8E8 4px, #DDD 4px, #DDD 8px);}
+  .slot.taken:hover, .slot.event:hover{transform:none;box-shadow:none;}
+  .slot.closed .tag{color:#8A8A8A;font-style:italic;}
   .slot.openmatch{background:var(--amber);cursor:pointer;}
   .slot.openmatch .tag{color:#fff;}
   .slot.openmatch:hover{filter:brightness(1.08);}
@@ -220,7 +225,7 @@
       </div>
       <div class="grid-scroll"><div class="court-grid" id="reservationsAllVenuesGrids">Načítání…</div></div>
       <div class="legend">
-        <span class="sw"><span class="box" style="background:repeating-linear-gradient(135deg,#fff,#fff 3px,#F5F5F5 3px,#F5F5F5 6px)"></span>Volné</span>
+        <span class="sw"><span class="box" style="background:#fff;border:1px solid #E0E0E0;"></span>Volné</span>
         <span class="sw"><span class="box" style="background:var(--taken-bg)"></span>Obsazené</span>
         <span class="sw"><span class="box" style="background:var(--ink)"></span>Klubová akce / turnaj</span>
         <span class="sw"><span class="box" style="background:var(--amber)"></span>Open Match (hledá hráče)</span>
@@ -241,7 +246,7 @@
       </div>
       <div class="grid-scroll"><div class="court-grid" id="courtGrid">Načítání…</div></div>
       <div class="legend">
-        <span class="sw"><span class="box" style="background:repeating-linear-gradient(135deg,#fff,#fff 3px,#F5F5F5 3px,#F5F5F5 6px)"></span>Volné</span>
+        <span class="sw"><span class="box" style="background:#fff;border:1px solid #E0E0E0;"></span>Volné</span>
         <span class="sw"><span class="box" style="background:var(--taken-bg)"></span>Obsazené</span>
         <span class="sw"><span class="box" style="background:var(--ink)"></span>Klubová akce / turnaj</span>
         <span class="sw"><span class="box" style="background:var(--amber)"></span>Open Match (hledá hráče)</span>
@@ -330,11 +335,15 @@
     </div>
     <div class="grid-scroll court-grid" id="adminOverviewGrids">Načítání…</div>
     <div class="legend">
-      <span class="sw"><span class="box" style="background:repeating-linear-gradient(135deg,#fff,#fff 3px,#F5F5F5 3px,#F5F5F5 6px)"></span>Volné</span>
+      <span class="sw"><span class="box" style="background:#fff;border:1px solid #E0E0E0;"></span>Volné</span>
       <span class="sw"><span class="box" style="background:var(--taken-bg)"></span>Obsazené</span>
       <span class="sw"><span class="box" style="background:var(--ink)"></span>Klubová akce / turnaj</span>
       <span class="sw"><span class="box" style="background:var(--amber)"></span>Open Match (hledá hráče)</span>
     </div>
+
+    <div class="section-title">Správa kurtů</div>
+    <p class="page-sub" style="margin-top:-6px;">Aktivace/deaktivace (např. kvůli opravě) a provozní doba po jednotlivých kurtech. Prázdné pole = platí výchozí doba areálu.</p>
+    <table class="admin-table" id="courtsManageTable"></table>
 
     <div class="admin-grid" id="adminStats"></div>
     <div class="section-title">Čeká na platbu</div>
@@ -576,6 +585,9 @@ function findCourt(courtId){
   }
   return {name:'Neznámý kurt', sub:'', locationSlug:null, locationName:'—'};
 }
+function courtOpenAt(court, hour){
+  return court.isActive !== false && hour >= court.dayStart && hour < court.dayEnd;
+}
 function formatHour(h){ const hh=Math.floor(h); const mm=Math.round((h-hh)*60); return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'); }
 function fmtDate(iso){ const d = new Date(iso+'T00:00:00'); return d.toLocaleDateString('cs-CZ', {weekday:'long', day:'numeric', month:'long'}); }
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2600); }
@@ -697,12 +709,21 @@ async function loadVenues(){
   if(error){ toast('Chyba načítání hřišť: ' + error.message); return; }
   venuesConfig = {};
   venues.forEach(v=>{
+    const courts = v.courts.map(c=>({
+      id: c.id, name: c.name, sub: c.sub_label, isActive: c.is_active,
+      overrideStart: c.day_start_hour!=null ? Number(c.day_start_hour) : null,
+      overrideEnd: c.day_end_hour!=null ? Number(c.day_end_hour) : null,
+      dayStart: c.day_start_hour!=null ? Number(c.day_start_hour) : Number(v.day_start_hour),
+      dayEnd: c.day_end_hour!=null ? Number(c.day_end_hour) : Number(v.day_end_hour),
+    })).sort((a,b)=>a.name.localeCompare(b.name));
+    const allStarts = courts.map(c=>c.dayStart).concat([Number(v.day_start_hour)]);
+    const allEnds = courts.map(c=>c.dayEnd).concat([Number(v.day_end_hour)]);
     venuesConfig[v.slug] = {
       id: v.id, clubId: v.club_id, name: v.name, sport: v.sport,
       priceHour: Number(v.price_per_hour), minDuration: Number(v.min_duration_hours),
-      slotStep: v.slot_step_minutes/60, dayStart: v.day_start_hour, dayEnd: v.day_end_hour,
+      slotStep: v.slot_step_minutes/60, dayStart: Math.min(...allStarts), dayEnd: Math.max(...allEnds),
       bookingWindowDays: v.booking_window_days, minPlayers: v.min_players, maxPlayers: v.max_players,
-      courts: v.courts.map(c=>({id:c.id, name:c.name, sub:c.sub_label})).sort((a,b)=>a.name.localeCompare(b.name))
+      courts
     };
   });
 }
@@ -790,8 +811,10 @@ function findReservationAt(courtId, hour){
   return gridReservations.find(r => r.court_id===courtId && hour >= r.start_hour && hour < r.end_hour && !['cancelled_by_user','cancelled_by_admin'].includes(r.status));
 }
 function computeMaxDuration(loc, courtId, startHour){
+  const court = loc.courts.find(c=>c.id===courtId);
+  const closeAt = court ? court.dayEnd : loc.dayEnd;
   let h = startHour;
-  while(h < loc.dayEnd){
+  while(h < closeAt){
     const occ = gridReservations.find(r => r.court_id===courtId && h >= r.start_hour && h < r.end_hour && !['cancelled_by_user','cancelled_by_admin'].includes(r.status));
     if(occ) break;
     h += loc.slotStep;
@@ -813,9 +836,18 @@ async function renderGrid(){
 
   loc.courts.forEach(court => {
     html += `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},1fr);"><div class="court-label">${court.name}<small>${court.sub||''}</small></div>`;
+    if(court.isActive === false){
+      html += `<div class="cell" style="grid-column: span ${starts.length};"><div class="slot closed spanning"><span class="tag">Mimo provoz</span></div></div></div>`;
+      return;
+    }
     let i = 0;
     while(i < starts.length){
       const s = starts[i];
+      if(!courtOpenAt(court, s)){
+        html += `<div class="cell"><div class="slot closed"></div></div>`;
+        i += 1;
+        continue;
+      }
       const r = findReservationAt(court.id, s);
       if(r && r.start_hour === s){
         const span = Math.max(1, Math.round((r.end_hour - r.start_hour) * (1/loc.slotStep)));
@@ -1577,6 +1609,47 @@ async function adminCreateBlockSingle(courtId, hour){
 
 /* ================= ADMIN dashboard ================= */
 let adminReservationsCache = [];
+function renderCourtsManageTable(){
+  const tbl = document.getElementById('courtsManageTable');
+  if(!tbl) return;
+  let rows = '';
+  OVERVIEW_ORDER.forEach(slug=>{
+    const loc = venuesConfig[slug];
+    if(!loc) return;
+    loc.courts.forEach(court=>{
+      rows += `<tr>
+        <td>${loc.name}</td>
+        <td>${court.name}${court.sub?` <small style="color:#6E6E6E;">${court.sub}</small>`:''}</td>
+        <td><label style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+          <input type="checkbox" ${court.isActive!==false?'checked':''} onchange="updateCourtActive('${court.id}', this.checked)">
+          ${court.isActive!==false ? 'Aktivní' : 'Mimo provoz'}
+        </label></td>
+        <td><input type="number" step="0.5" min="0" max="24" style="width:64px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;" placeholder="${loc.dayStart}" value="${court.overrideStart!=null?court.overrideStart:''}" onchange="updateCourtHours('${court.id}','day_start_hour',this.value)"></td>
+        <td><input type="number" step="0.5" min="0" max="24" style="width:64px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;" placeholder="${loc.dayEnd}" value="${court.overrideEnd!=null?court.overrideEnd:''}" onchange="updateCourtHours('${court.id}','day_end_hour',this.value)"></td>
+      </tr>`;
+    });
+  });
+  tbl.innerHTML = `<thead><tr><th>Areál</th><th>Kurt</th><th>Stav</th><th>Otevřeno od</th><th>Otevřeno do</th></tr></thead><tbody>${rows}</tbody>`;
+}
+async function updateCourtActive(courtId, checked){
+  const { error } = await sb.from('courts').update({ is_active: checked }).eq('id', courtId);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast(checked ? 'Kurt je aktivní' : 'Kurt je mimo provoz');
+  await loadVenues();
+  renderCourtsManageTable();
+  await renderAllVenuesOverview();
+  if(currentLocationId) await renderGrid();
+}
+async function updateCourtHours(courtId, field, value){
+  const payload = { [field]: value === '' ? null : Number(value) };
+  const { error } = await sb.from('courts').update(payload).eq('id', courtId);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Provozní doba uložena');
+  await loadVenues();
+  renderCourtsManageTable();
+  await renderAllVenuesOverview();
+  if(currentLocationId) await renderGrid();
+}
 const OVERVIEW_ORDER = ['padel-klatovy','beachvolley-klatovy','padel-brandys'];
 function buildAllVenuesGridsHtml(allRes){
   let html = '';
@@ -1591,9 +1664,18 @@ function buildAllVenuesGridsHtml(allRes){
     html += `</div>`;
     loc.courts.forEach(court=>{
       html += `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},1fr);"><div class="court-label">${court.name}<small>${court.sub||''}</small></div>`;
+      if(court.isActive === false){
+        html += `<div class="cell" style="grid-column: span ${starts.length};"><div class="slot closed spanning"><span class="tag">Mimo provoz</span></div></div></div>`;
+        return;
+      }
       let i=0;
       while(i<starts.length){
         const s = starts[i];
+        if(!courtOpenAt(court, s)){
+          html += `<div class="cell"><div class="slot closed"></div></div>`;
+          i += 1;
+          continue;
+        }
         const r = venueRes.find(rr => rr.court_id===court.id && s >= rr.start_hour && s < rr.end_hour);
         if(r && r.start_hour === s){
           const span = Math.max(1, Math.round((r.end_hour - r.start_hour) * (1/loc.slotStep)));
@@ -1662,6 +1744,7 @@ async function renderAdmin(){
     return;
   }
   await renderAllVenuesOverview();
+  renderCourtsManageTable();
   const { data, error } = await sb.from('reservations').select('*').order('date',{ascending:false});
   if(error){ toast('Chyba: '+error.message); return; }
   adminReservationsCache = data;
