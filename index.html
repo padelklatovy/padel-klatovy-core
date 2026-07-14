@@ -82,8 +82,8 @@
   .grid-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--paper-dim);box-shadow:0 1px 3px rgba(0,0,0,0.06);padding:2px;}
   .court-grid{width:100%;}
   .grid-row{display:grid;column-gap:2px;margin-bottom:2px;}
-  .grid-row:first-child{background:var(--ink);border-radius:8px 8px 0 0;margin-bottom:4px;border-bottom:2px solid var(--red);}
-  .grid-row:first-child .cell{color:#fff;font-family:var(--font-head);font-size:9px;text-align:center;padding:9px 0;font-weight:600;letter-spacing:0.3px;}
+  .grid-row:first-child{background:var(--ink);border-radius:8px 8px 0 0;margin-bottom:4px;}
+  .grid-row:first-child .cell{color:#fff;font-family:var(--font-head);font-size:8px;text-align:center;padding:9px 0;font-weight:600;letter-spacing:0.2px;}
   .grid-row:first-child .cell.half{color:#8A8A8A;}
   .court-label{padding:14px 10px;font-family:var(--font-head);font-weight:600;font-size:14px;border-radius:8px 0 0 8px;display:flex;flex-direction:column;justify-content:center;background:#fff;position:sticky;left:0;z-index:2;}
   .court-label small{font-weight:400;font-size:10px;color:#6E6E6E;text-transform:uppercase;letter-spacing:0.4px;}
@@ -830,7 +830,8 @@ async function renderGrid(){
   document.getElementById('dateLabel').textContent = fmtDate(selectedDate);
   document.getElementById('datePicker').value = selectedDate;
   const grid = document.getElementById('courtGrid');
-  let html = `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},1fr);"><div class="cell court-label" style="background:var(--ink);color:#fff;"></div>`;
+  const hc = VENUE_HEADER_COLOR[currentLocationId] || 'var(--ink)';
+  let html = `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},1fr);background:${hc};"><div class="cell court-label" style="background:${hc};color:#fff;"></div>`;
   starts.forEach(s => html += `<div class="cell ${s%1!==0?'half':''}">${s%1!==0?'':formatHour(s)}</div>`);
   html += `</div>`;
 
@@ -1651,6 +1652,7 @@ async function updateCourtHours(courtId, field, value){
   if(currentLocationId) await renderGrid();
 }
 const OVERVIEW_ORDER = ['padel-klatovy','beachvolley-klatovy','padel-brandys'];
+const VENUE_HEADER_COLOR = { 'padel-klatovy': 'var(--red)', 'beachvolley-klatovy': 'var(--ink)', 'padel-brandys': 'var(--green)' };
 function buildAllVenuesGridsHtml(allRes){
   let html = '';
   OVERVIEW_ORDER.forEach(slug=>{
@@ -1659,7 +1661,8 @@ function buildAllVenuesGridsHtml(allRes){
     const starts = slotStarts(loc);
     const venueRes = allRes.filter(r=>r.venue_id===loc.id && !['cancelled_by_user','cancelled_by_admin'].includes(r.status));
     html += `<div style="font-weight:700;font-size:15px;margin:20px 0 8px;">${loc.name}</div>`;
-    html += `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},1fr);"><div class="cell court-label" style="background:var(--ink);color:#fff;"></div>`;
+    const hc = VENUE_HEADER_COLOR[slug] || 'var(--ink)';
+    html += `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},1fr);background:${hc};"><div class="cell court-label" style="background:${hc};color:#fff;"></div>`;
     starts.forEach(s => html += `<div class="cell ${s%1!==0?'half':''}">${s%1!==0?'':formatHour(s)}</div>`);
     html += `</div>`;
     loc.courts.forEach(court=>{
