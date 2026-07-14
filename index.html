@@ -448,7 +448,7 @@
         <div class="cb-title">Opakovat každý týden</div>
         <div class="cb-sub">Pro pravidelné skupiny (trénink, liga). Vytvoří sérii rezervací, kterou pak smažeš jedním tlačítkem.</div>
         <div id="repeatBox" style="display:none;margin-top:10px;">
-          <div class="field" style="margin-bottom:8px;"><label style="font-size:12px;">Název série</label><input id="seriesName" placeholder="např. Čtvrteční skupina Novákovi"></div>
+          <div class="field" style="margin-bottom:8px;"><label style="font-size:12px;">Interní název série (jen pro tvůj přehled v Adminu, nikde jinde se neukazuje)</label><input id="seriesName" placeholder="např. Čtvrteční skupina Novákovi"></div>
           <div class="field" style="margin-bottom:0;"><label style="font-size:12px;">Opakovat do (včetně)</label><input type="date" id="seriesUntil" onchange="updateSeriesSummary()"></div>
           <div id="seriesSummary" style="font-size:12px;color:#6E6E6E;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);"></div>
         </div>
@@ -943,7 +943,7 @@ function openBookingModal({courtId, startHour, adminMode}){
   if(adminMode){
     orgBox.innerHTML = `
       <button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:10px;" onclick="fillMyOwnDetails()">Rezervuji pro sebe — zdarma</button>
-      <div class="field"><label>Organizátor — jméno</label><input id="orgName" placeholder="Jana Nováková" oninput="syncOrganizer()"></div>
+      <div class="field"><label>Jméno hráče (pro koho rezervace je — ukáže se v gridu)</label><input id="orgName" placeholder="Jana Nováková" oninput="syncOrganizer()"></div>
       <div class="field"><label>Telefon (volitelné)</label><input id="orgPhone" placeholder="+420 600 000 000"></div>
       <div class="field"><label>Sleva organizátora</label>
         <select id="orgDiscount" onchange="syncOrganizer()">${DISCOUNT_OPTIONS.map(d=>`<option value="${d}">${d===100?'100 % (zdarma)':d+' %'}</option>`).join('')}</select>
