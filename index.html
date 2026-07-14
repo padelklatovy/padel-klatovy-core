@@ -396,7 +396,7 @@
     <h2>Přihlášení</h2>
     <p class="modal-sub">Pošleme ti přihlašovací odkaz na e-mail — žádné heslo.</p>
     <div class="field"><label>E-mail</label><input id="loginEmail" placeholder="jana@example.com" type="email"></div>
-    <button class="btn btn-primary" style="width:100%;" onclick="sendMagicLink()">Poslat přihlašovací odkaz</button>
+    <button class="btn btn-primary" id="magicLinkBtn" style="width:100%;" onclick="sendMagicLink()">Poslat přihlašovací odkaz</button>
     <div id="loginStatus" style="margin-top:12px;font-size:13px;color:#6E6E6E;"></div>
   </div>
 </div>
@@ -622,12 +622,44 @@ function populateLevelSelect(selectId, selectedCode){
 }
 
 /* ================= AUTH ================= */
+let magicLinkCooldownTimer = null;
+function startMagicLinkCooldown(seconds){
+  const btn = document.getElementById('magicLinkBtn');
+  let remaining = seconds;
+  if(magicLinkCooldownTimer) clearInterval(magicLinkCooldownTimer);
+  btn.disabled = true;
+  const tick = () => {
+    btn.textContent = `Zkus znovu za ${remaining} s`;
+    if(remaining <= 0){
+      clearInterval(magicLinkCooldownTimer);
+      btn.disabled = false;
+      btn.textContent = 'Poslat přihlašovací odkaz';
+    }
+    remaining--;
+  };
+  tick();
+  magicLinkCooldownTimer = setInterval(tick, 1000);
+}
 async function sendMagicLink(){
   const email = document.getElementById('loginEmail').value.trim();
   if(!email){ toast('Zadej e-mail'); return; }
+  const btn = document.getElementById('magicLinkBtn');
+  btn.disabled = true;
   document.getElementById('loginStatus').textContent = 'Odesílám...';
   const { error } = await sb.auth.signInWithOtp({ email, options:{ emailRedirectTo: window.location.href } });
-  document.getElementById('loginStatus').textContent = error ? ('Chyba: ' + error.message) : 'Hotovo — zkontroluj e-mail a klikni na odkaz.';
+  if(error){
+    const waitMatch = error.message.match(/after (\d+) seconds?/i);
+    if(waitMatch){
+      document.getElementById('loginStatus').textContent = 'Odkaz už byl nedávno odeslán — zkontroluj e-mail (i spam). Nové tlačítko se odemkne za chvíli.';
+      startMagicLinkCooldown(parseInt(waitMatch[1]));
+    } else {
+      document.getElementById('loginStatus').textContent = 'Chyba: ' + error.message;
+      btn.disabled = false;
+    }
+    return;
+  }
+  document.getElementById('loginStatus').textContent = 'Hotovo — zkontroluj e-mail (i spam) a klikni na odkaz. Další odkaz půjde poslat až za minutu.';
+  startMagicLinkCooldown(60);
 }
 async function logout(){ await sb.auth.signOut(); session=null; profile=null; renderHeader(); renderAll(); }
 
