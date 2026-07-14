@@ -744,11 +744,12 @@ async function loadVenues(){
   venues.forEach(v=>{
     const courts = v.courts.map(c=>({
       id: c.id, name: c.name, sub: c.sub_label, isActive: c.is_active,
+      sortOrder: c.sort_order,
       overrideStart: c.day_start_hour!=null ? Number(c.day_start_hour) : null,
       overrideEnd: c.day_end_hour!=null ? Number(c.day_end_hour) : null,
       dayStart: c.day_start_hour!=null ? Number(c.day_start_hour) : Number(v.day_start_hour),
       dayEnd: c.day_end_hour!=null ? Number(c.day_end_hour) : Number(v.day_end_hour),
-    })).sort((a,b)=>a.name.localeCompare(b.name));
+    })).sort((a,b)=> (a.sortOrder ?? 999) - (b.sortOrder ?? 999) || a.name.localeCompare(b.name));
     const allStarts = courts.map(c=>c.dayStart).concat([Number(v.day_start_hour)]);
     const allEnds = courts.map(c=>c.dayEnd).concat([Number(v.day_end_hour)]);
     venuesConfig[v.slug] = {
