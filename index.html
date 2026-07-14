@@ -896,7 +896,7 @@ async function renderGrid(){
         if(r.status==='club_blocked'){ cls='event'; tag = r.event_name||'Akce'; clickable = isAdmin(); }
         else if(r.is_open_match && r.status==='paid_confirmed'){ cls='openmatch'; tag = 'Open Match'; }
         else if(profile && r.member_id===profile.user_id){ cls='mine'; tag = r.status==='pending_payment' ? 'Čeká platba' : 'Moje'; }
-        else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = `${r.organizer_name || 'Obsazeno'} · Zdarma`; clickable = true; }
+        else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Obsazeno'; clickable = true; }
         else { cls='taken'; tag = isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; clickable = isAdmin(); }
         html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" ${clickable?`onclick="openSlot('${court.id}',${s})"`:''}><span class="tag">${tag}</span></div></div>`;
         i += span;
@@ -1738,7 +1738,7 @@ function buildAllVenuesGridsHtml(allRes){
           if(r.status==='club_blocked'){ cls='event'; tag = r.event_name||'Akce'; }
           else if(r.is_open_match && r.status==='paid_confirmed'){ cls='openmatch'; tag='Open Match'; }
           else if(profile && r.member_id===profile.user_id){ cls='mine'; tag = r.status==='pending_payment' ? 'Čeká platba' : 'Moje'; }
-          else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = `${r.organizer_name || 'Obsazeno'} · Zdarma`; }
+          else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Obsazeno'; }
           else { cls='taken'; tag = isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; }
           html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" onclick="openOverviewSlot('${slug}','${court.id}',${s})"><span class="tag">${tag}</span></div></div>`;
           i += span;
