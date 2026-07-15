@@ -390,6 +390,7 @@
         <button class="btn btn-dark" onclick="addPendingMembership()">Přidat</button>
       </div>
     </div>
+    <div class="field" style="max-width:320px;margin-top:8px;"><input id="pendingMembershipSearch" placeholder="Hledat podle jména nebo e-mailu..." oninput="renderPendingMemberships()"></div>
     <table class="admin-table" id="pendingMembershipsTable" style="margin-top:12px;"></table>
 
     <div class="section-title">Opakované rezervace (série)</div>
@@ -1462,8 +1463,18 @@ function openEventSignupModal(ev){
   activeSignupEvent = ev;
   document.getElementById('signupEventTitle').textContent = ev.name;
   document.getElementById('signupEventMeta').textContent = `${fmtDate(ev.date)} · ${(ev.time_from||'').slice(0,5)}–${(ev.time_to||'').slice(0,5)}${ev.location?` · ${ev.location}`:''}`;
-  const priceLabel = ev.is_free || !ev.price ? 'Zdarma' : `${ev.price} Kč / ${ev.price_mode==='dvojice'?'dvojici':'osobu'}`;
-  document.getElementById('signupEventPrice').textContent = priceLabel;
+  const discount = profile.discount_percent || 0;
+  const perUnit = ev.price_mode==='dvojice' ? 'dvojici' : 'osobu';
+  let priceLabel;
+  if(ev.is_free || !ev.price){
+    priceLabel = 'Zdarma';
+  } else if(discount > 0){
+    const discounted = Math.round(ev.price * (1 - discount/100));
+    priceLabel = `<span style="text-decoration:line-through;color:#6E6E6E;">${ev.price} Kč</span> ${discounted} Kč / ${perUnit} <span style="color:var(--green);font-weight:600;">(sleva ${discount} %)</span>`;
+  } else {
+    priceLabel = `${ev.price} Kč / ${perUnit}`;
+  }
+  document.getElementById('signupEventPrice').innerHTML = priceLabel;
   document.getElementById('signupPartnerRow').style.display = ev.price_mode==='dvojice' ? '' : 'none';
   document.getElementById('signupPartnerName').value = '';
   showModal('eventSignupOverlay');
@@ -1473,7 +1484,9 @@ async function submitEventSignup(){
   const partnerName = ev.price_mode==='dvojice' ? document.getElementById('signupPartnerName').value.trim() : null;
   if(ev.price_mode==='dvojice' && !partnerName){ toast('Vyplň jméno spoluhráče'); return; }
 
-  const amount = ev.is_free ? 0 : Number(ev.price)||0;
+  const rawPrice = ev.is_free ? 0 : Number(ev.price)||0;
+  const discount = profile.discount_percent || 0;
+  const amount = rawPrice === 0 ? 0 : Math.round(rawPrice * (1 - discount/100));
   const { data: reg, error } = await sb.from('event_registrations').insert({
     club_id: CLUB_ID, event_id: ev.id, member_id: profile.user_id, partner_name: partnerName,
     amount_due: amount, status: amount===0 ? 'paid_confirmed' : 'pending_payment',
@@ -1693,6 +1706,18 @@ async function adminCreateBlockSingle(courtId, hour){
 
 /* ================= ADMIN dashboard ================= */
 let adminReservationsCache = [];
+let pendingMembershipsCache = [];
+function normalizeName(s){
+  return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z\s]/g,'').trim();
+}
+function findPossibleMembershipMatch(fullName){
+  const tokens = normalizeName(fullName).split(/\s+/).filter(t=>t.length>=3);
+  if(!tokens.length) return null;
+  return pendingMembershipsCache.find(p=>{
+    const pTokens = normalizeName(p.full_name).split(/\s+/).filter(t=>t.length>=3);
+    return pTokens.some(pt => tokens.includes(pt));
+  }) || null;
+}
 function renderCourtsManageTable(){
   const tbl = document.getElementById('courtsManageTable');
   if(!tbl) return;
@@ -1992,12 +2017,25 @@ function paintMembersTable(){
 function openMemberDetail(userId){
   const m = membersCache.find(x=>x.user_id===userId); if(!m) return;
   document.getElementById('memberDetailName').textContent = m.full_name;
+  let matchHtml = '';
+  if((m.discount_percent||0) === 0){
+    const match = findPossibleMembershipMatch(m.full_name);
+    if(match){
+      const tierLabel = {clen:'Člen (20 %)', trener:'Trenér (100 %)'}[match.membership_tier] || match.membership_tier;
+      matchHtml = `<div class="empty-state" style="margin-bottom:14px;padding:14px 16px;text-align:left;background:#FFF8E6;border-color:#E8C97A;">
+        <div class="em-title" style="margin-bottom:4px;">Možná shoda v čekajících členstvích</div>
+        „${match.full_name}" (${match.email}) čeká jako <b>${tierLabel}</b> — vypadá to na stejnou osobu, jen s jiným přihlašovacím e-mailem.
+        <div style="margin-top:10px;"><button class="btn btn-sm btn-dark" onclick="applyPendingMatch('${m.user_id}','${match.id}')">Přiřadit tuhle slevu</button></div>
+      </div>`;
+    }
+  }
   const rows = m.reservations.slice().sort((a,b)=>(a.date+a.start_hour)<(b.date+b.start_hour)?1:-1).map(r=>{
     const court = findCourt(r.court_id);
     const statusLabel = {pending_payment:'Čeká na platbu', paid_confirmed:'Zaplaceno'}[r.status] || r.status;
     return `<tr><td>${r.date}</td><td>${court.locationName} · ${court.name}</td><td>${formatHour(r.start_hour)}–${formatHour(r.end_hour)}</td><td>${r.amount_due} Kč</td><td>${statusLabel}</td></tr>`;
   }).join('');
   document.getElementById('memberDetailContent').innerHTML = `
+    ${matchHtml}
     <div class="price-box" style="margin-top:0;">
       <div class="price-row"><span>Telefon</span><span>${m.phone||'—'}</span></div>
       <div class="price-row"><span>Členská úroveň</span><span>
@@ -2022,6 +2060,19 @@ function openMemberDetail(userId){
     <table class="admin-table"><tr><th>Datum</th><th>Kurt</th><th>Čas</th><th>Částka</th><th>Stav</th></tr>${rows || '<tr><td style="padding:12px;color:#948e83;">Žádné objednávky</td></tr>'}</table>
   `;
   showModal('memberDetailOverlay');
+}
+async function applyPendingMatch(userId, pendingId){
+  const match = pendingMembershipsCache.find(p=>p.id===pendingId);
+  if(!match){ toast('Záznam už neplatí, obnov stránku'); return; }
+  const { error: profErr } = await sb.from('member_profiles')
+    .update({ membership_tier: match.membership_tier, discount_percent: match.discount_percent })
+    .eq('user_id', userId);
+  if(profErr){ toast('Chyba: '+profErr.message); return; }
+  await sb.from('pending_memberships').update({ claimed_at: new Date().toISOString() }).eq('id', pendingId);
+  toast('Sleva přiřazena ručně');
+  closeModal('memberDetailOverlay');
+  await renderMembers();
+  await renderPendingMemberships();
 }
 async function updateMemberTier(userId, tier){
   const discount = {none:0, clen:20, trener:100}[tier];
@@ -2134,15 +2185,18 @@ async function renderPendingMemberships(){
   const table = document.getElementById('pendingMembershipsTable'); if(!table) return;
   const { data, error } = await sb.from('pending_memberships').select('*').is('claimed_at', null).order('created_at',{ascending:false});
   if(error){ toast('Chyba: '+error.message); return; }
+  pendingMembershipsCache = data;
+  const q = (document.getElementById('pendingMembershipSearch')?.value || '').trim().toLowerCase();
+  const filtered = q ? data.filter(p => (p.full_name||'').toLowerCase().includes(q) || (p.email||'').toLowerCase().includes(q)) : data;
   const tierLabel = {clen:'Člen (20 %)', trener:'Trenér (100 %)'};
-  table.innerHTML = data.length ? `
+  table.innerHTML = filtered.length ? `
     <tr><th>E-mail</th><th>Jméno</th><th>Úroveň</th><th>Přidáno</th><th></th></tr>
-    ${data.map(p=>`<tr>
+    ${filtered.map(p=>`<tr>
       <td>${p.email}</td><td>${p.full_name||'—'}</td><td>${tierLabel[p.membership_tier]||p.membership_tier}</td>
       <td>${new Date(p.created_at).toLocaleDateString('cs-CZ')}</td>
       <td><button class="btn btn-sm btn-ghost" onclick="removePendingMembership('${p.id}')">Zrušit</button></td>
     </tr>`).join('')}
-  ` : `<tr><td style="padding:16px;color:#948e83;">Žádná čekající předplacená členství</td></tr>`;
+  ` : `<tr><td style="padding:16px;color:#948e83;">${q ? 'Nic nenalezeno' : 'Žádná čekající předplacená členství'}</td></tr>`;
 }
 async function addPendingMembership(){
   const email = document.getElementById('pendingEmail').value.trim().toLowerCase();
