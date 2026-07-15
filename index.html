@@ -156,6 +156,9 @@
   .players-box{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px;background:#fff;}
   .players-box .p-title{font-family:var(--font-head);font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;}
   .player-row{display:flex;gap:6px;align-items:center;margin-bottom:8px;}
+  .player-suggest{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:20;max-height:160px;overflow-y:auto;margin-top:2px;}
+  .player-suggest-item{padding:8px 12px;font-size:13px;cursor:pointer;}
+  .player-suggest-item:hover{background:var(--paper-dim);}
   .player-row input{flex:2;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-family:var(--font-body);}
   .player-row select{flex:1;padding:8px 6px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-family:var(--font-body);}
   .player-row .rm{background:none;border:none;color:#c40000;cursor:pointer;font-size:16px;padding:2px 6px;}
@@ -1096,7 +1099,11 @@ function renderPlayersList(){
   const extra = booking.players.filter(p=>!p.isOrganizer);
   el.innerHTML = extra.map((p, idx) => `
     <div class="player-row">
-      <input value="${p.name}" placeholder="Jméno spoluhráče" oninput="updatePlayerName(${idx}, this.value)">
+      <div style="position:relative;flex:2;">
+        <input value="${p.name}" placeholder="Jméno spoluhráče" autocomplete="off" style="width:100%;"
+          oninput="updatePlayerName(${idx}, this.value)" onblur="setTimeout(()=>hidePlayerSuggestions(${idx}),150)">
+        <div id="playerSuggest-${idx}" class="player-suggest" style="display:none;"></div>
+      </div>
       <select onchange="updatePlayerDiscount(${idx}, this.value)">${DISCOUNT_OPTIONS.map(d=>`<option value="${d}" ${d===p.discount?'selected':''}>${d===100?'100 %':d+' %'}</option>`).join('')}</select>
       <button class="rm" onclick="removePlayerRow(${idx})">×</button>
     </div>`).join('');
@@ -1104,10 +1111,34 @@ function renderPlayersList(){
 }
 function addPlayerRow(){
   if(booking.players.length >= booking.loc.maxPlayers){ toast(`Max. ${booking.loc.maxPlayers} hráčů na tuhle rezervaci`); return; }
-  booking.players.push({name:'', discount:0, isOrganizer:false});
+  booking.players.push({name:'', discount:0, isOrganizer:false, memberId:null});
   renderPlayersList(); updatePriceBox();
 }
-function updatePlayerName(idx, val){ booking.players.filter(p=>!p.isOrganizer)[idx].name = val; }
+let playerSearchTimer = null;
+async function updatePlayerName(idx, val){
+  const p = booking.players.filter(p=>!p.isOrganizer)[idx];
+  p.name = val;
+  p.memberId = null; // ruční přepis = přestává to být potvrzená shoda na účet
+  clearTimeout(playerSearchTimer);
+  const box = document.getElementById(`playerSuggest-${idx}`);
+  if(!box) return;
+  if(val.trim().length < 2){ box.style.display = 'none'; return; }
+  playerSearchTimer = setTimeout(async ()=>{
+    const { data, error } = await sb.rpc('search_members', { search_term: val.trim() });
+    if(error || !data || !data.length){ box.style.display = 'none'; return; }
+    box.innerHTML = data.map(m=>`<div class="player-suggest-item" onclick="pickPlayerSuggestion(${idx},'${m.user_id}',${JSON.stringify(m.full_name)})">${m.full_name}</div>`).join('');
+    box.style.display = '';
+  }, 250);
+}
+function pickPlayerSuggestion(idx, userId, fullName){
+  const p = booking.players.filter(p=>!p.isOrganizer)[idx];
+  p.name = fullName; p.memberId = userId;
+  renderPlayersList();
+}
+function hidePlayerSuggestions(idx){
+  const box = document.getElementById(`playerSuggest-${idx}`);
+  if(box) box.style.display = 'none';
+}
 function updatePlayerDiscount(idx, val){ booking.players.filter(p=>!p.isOrganizer)[idx].discount = parseInt(val,10); updatePriceBox(); }
 function removePlayerRow(idx){
   const extra = booking.players.filter(p=>!p.isOrganizer);
