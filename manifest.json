@@ -1,0 +1,25 @@
+{
+  "name": "Padel Klatovy",
+  "short_name": "Padel Klatovy",
+  "description": "Rezervace kurtů, akce a klubový bar pro Padel Klatovy, Beachvolejbal Klatovy a Padel Brandýs.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#FAFAFA",
+  "theme_color": "#141414",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
