@@ -820,7 +820,7 @@ async function loadTodayOccupancy(){
 
   const { data, error } = await sb.from('reservations').select('venue_id, start_hour, end_hour, status')
     .eq('date', todayISO())
-    .not('status', 'in', '(cancelled_by_user,cancelled_by_admin)');
+    .not('status', 'in', '(cancelled_by_user,cancelled_by_admin,expired)');
   todayOccupancy = {};
   Object.keys(venuesConfig).forEach(slug=>{
     const loc = venuesConfig[slug];
@@ -893,14 +893,14 @@ async function loadGridReservations(){
   gridReservations = data;
 }
 function findReservationAt(courtId, hour){
-  return gridReservations.find(r => r.court_id===courtId && hour >= r.start_hour && hour < r.end_hour && !['cancelled_by_user','cancelled_by_admin'].includes(r.status));
+  return gridReservations.find(r => r.court_id===courtId && hour >= r.start_hour && hour < r.end_hour && !['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status));
 }
 function computeMaxDuration(loc, courtId, startHour){
   const court = loc.courts.find(c=>c.id===courtId);
   const closeAt = court ? court.dayEnd : loc.dayEnd;
   let h = startHour;
   while(h < closeAt){
-    const occ = gridReservations.find(r => r.court_id===courtId && h >= r.start_hour && h < r.end_hour && !['cancelled_by_user','cancelled_by_admin'].includes(r.status));
+    const occ = gridReservations.find(r => r.court_id===courtId && h >= r.start_hour && h < r.end_hour && !['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status));
     if(occ) break;
     h += loc.slotStep;
   }
@@ -1279,7 +1279,7 @@ async function confirmBookingRecurring(){
 
   const { data: existing } = await sb.from('reservations').select('date,start_hour,end_hour,status')
     .eq('court_id', booking.courtId).in('date', dates);
-  const blocked = new Set((existing||[]).filter(r=>!['cancelled_by_user','cancelled_by_admin'].includes(r.status))
+  const blocked = new Set((existing||[]).filter(r=>!['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status))
     .filter(r => booking.startHour < r.end_hour && (booking.startHour+booking.duration) > r.start_hour)
     .map(r=>r.date));
 
@@ -1397,7 +1397,7 @@ async function renderMine(){
 
   const seriesCards = Object.keys(seriesGroups).map(sid=>{
     const items = seriesGroups[sid];
-    const active = items.filter(r=>!['cancelled_by_user','cancelled_by_admin'].includes(r.status));
+    const active = items.filter(r=>!['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status));
     if(!active.length) return '';
     const court = findCourt(active[0].court_id);
     const dates = active.map(i=>i.date).sort();
@@ -1679,7 +1679,7 @@ async function getValidStartsForEdit(){
   const loc = editState.loc;
   const { data } = await sb.from('reservations').select('id,start_hour,end_hour,status')
     .eq('court_id', editState.courtId).eq('date', editState.date).neq('id', editState.id);
-  const active = (data||[]).filter(r=>!['cancelled_by_user','cancelled_by_admin'].includes(r.status));
+  const active = (data||[]).filter(r=>!['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status));
   return slotStarts(loc).filter(s => computeMaxDurAgainst(loc, s, active) >= loc.minDuration);
 }
 function computeMaxDurAgainst(loc, startHour, activeList){
@@ -1708,7 +1708,7 @@ async function populateEditEnds(){
   const loc = editState.loc;
   const { data } = await sb.from('reservations').select('id,start_hour,end_hour,status')
     .eq('court_id', editState.courtId).eq('date', editState.date).neq('id', editState.id);
-  const active = (data||[]).filter(r=>!['cancelled_by_user','cancelled_by_admin'].includes(r.status));
+  const active = (data||[]).filter(r=>!['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status));
   const maxDur = computeMaxDurAgainst(loc, editState.startHour, active);
   const ends = [];
   for(let d=loc.minDuration; d<=maxDur+1e-9; d+=loc.slotStep){ ends.push(Math.round((editState.startHour+d)*(1/loc.slotStep))/(1/loc.slotStep)); }
@@ -1830,7 +1830,7 @@ function buildAllVenuesGridsHtml(allRes){
     const loc = venuesConfig[slug];
     if(!loc) return;
     const starts = slotStarts(loc);
-    const venueRes = allRes.filter(r=>r.venue_id===loc.id && !['cancelled_by_user','cancelled_by_admin'].includes(r.status));
+    const venueRes = allRes.filter(r=>r.venue_id===loc.id && !['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status));
     const hc = VENUE_HEADER_COLOR[slug] || 'var(--ink)';
     html += `<div class="venue-title" style="border-left-color:${hc};">${loc.name}</div>`;
     html += `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},1fr);border-top:4px solid ${hc};"><div class="cell court-label" style="border-radius:0;"></div>`;
@@ -1982,7 +1982,7 @@ function renderAdminTable(){
     <tr><th>Hřiště</th><th>Kurt</th><th>Datum</th><th>Čas</th><th>Typ</th><th>Kdo</th><th>Sleva</th><th>Stav</th><th>Vytvořil</th><th>Poznámka</th></tr>
     ${list.map(r=>{
       const court=findCourt(r.court_id);
-      const statusLabel = {pending_payment:'Čeká na platbu', paid_confirmed:'Zaplaceno', club_blocked:'Blokace/akce', cancelled_by_user:'Zrušeno (hráč)', cancelled_by_admin:'Zrušeno (admin)'}[r.status] || r.status;
+      const statusLabel = {pending_payment:'Čeká na platbu', paid_confirmed:'Zaplaceno', club_blocked:'Blokace/akce', cancelled_by_user:'Zrušeno (hráč)', cancelled_by_admin:'Zrušeno (admin)', expired:'Vypršelo (nezaplaceno)'}[r.status] || r.status;
       return `<tr><td>${court.locationName}</td><td>${court.name}</td><td>${r.date}</td><td>${formatHour(r.start_hour)}–${formatHour(r.end_hour)}</td>
         <td>${r.type==='club_event'?'Akce':'Rezervace'}</td><td>${r.organizer_name||r.event_name||'—'}</td>
         <td>${r.discount_applied ?? '—'} %</td><td>${statusLabel}</td><td>${r.created_by || 'hráč (online)'}</td><td>${r.admin_note||'—'}</td></tr>`;
@@ -2149,7 +2149,7 @@ async function updateMemberRole(userId, value){
 
 function renderSeriesAdmin(){
   const table = document.getElementById('seriesTable'); if(!table) return;
-  const active = adminReservationsCache.filter(r=>r.series_id && !['cancelled_by_user','cancelled_by_admin'].includes(r.status));
+  const active = adminReservationsCache.filter(r=>r.series_id && !['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status));
   const groups = {};
   active.forEach(r=>{
     if(!groups[r.series_id]) groups[r.series_id] = { name: r.series_name, courtId: r.court_id, items: [] };
@@ -2186,7 +2186,7 @@ async function extendSeries(seriesId){
 
   const { data: conflicting } = await sb.from('reservations').select('date,start_hour,end_hour,status')
     .eq('court_id', lastRow.court_id).in('date', dates);
-  const blocked = new Set((conflicting||[]).filter(r=>!['cancelled_by_user','cancelled_by_admin'].includes(r.status))
+  const blocked = new Set((conflicting||[]).filter(r=>!['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status))
     .filter(r => lastRow.start_hour < r.end_hour && lastRow.end_hour > r.start_hour)
     .map(r=>r.date));
   const okDates = dates.filter(dt=>!blocked.has(dt));
@@ -2227,7 +2227,7 @@ async function shortenSeries(seriesId){
     .update({status})
     .eq('series_id', seriesId)
     .gt('date', newEnd)
-    .not('status','in','(cancelled_by_user,cancelled_by_admin)')
+    .not('status','in','(cancelled_by_user,cancelled_by_admin,expired)')
     .select('id');
   if(error){ toast('Chyba: '+error.message); return; }
   toast(`Série zkrácena — zrušeno ${data.length} termínů po ${fmtDate(newEnd)}`);
@@ -2236,7 +2236,7 @@ async function shortenSeries(seriesId){
 }
 async function cancelSeries(seriesId){
   const status = isAdmin() ? 'cancelled_by_admin' : 'cancelled_by_user';
-  const { error } = await sb.from('reservations').update({status}).eq('series_id', seriesId).not('status','in','(cancelled_by_user,cancelled_by_admin)');
+  const { error } = await sb.from('reservations').update({status}).eq('series_id', seriesId).not('status','in','(cancelled_by_user,cancelled_by_admin,expired)');
   if(error){ toast('Chyba: '+error.message); return; }
   toast('Celá série zrušena');
   await renderAll();
