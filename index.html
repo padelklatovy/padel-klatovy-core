@@ -161,6 +161,7 @@
   .player-suggest-item:hover{background:var(--paper-dim);}
   .player-row input{flex:2;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-family:var(--font-body);}
   .player-row select{flex:1;padding:8px 6px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-family:var(--font-body);}
+  .p-discount-readonly{flex:1;padding:8px 6px;font-size:13px;color:#6E6E6E;text-align:center;}
   .player-row .rm{background:none;border:none;color:#c40000;cursor:pointer;font-size:16px;padding:2px 6px;}
   .player-row.fixed{background:var(--paper);border-radius:6px;padding:6px 10px;font-size:13px;}
   .add-player-btn{background:none;border:1px dashed var(--line);border-radius:6px;padding:8px;width:100%;cursor:pointer;font-size:13px;color:var(--green);font-family:var(--font-head);font-weight:600;}
@@ -1116,6 +1117,7 @@ function syncOrganizer(){
 function renderPlayersList(){
   const el = document.getElementById('playersList');
   const extra = booking.players.filter(p=>!p.isOrganizer);
+  const canEditDiscount = isAdmin();
   el.innerHTML = extra.map((p, idx) => `
     <div class="player-row">
       <div style="position:relative;flex:2;">
@@ -1123,7 +1125,9 @@ function renderPlayersList(){
           oninput="updatePlayerName(${idx}, this.value)" onblur="setTimeout(()=>hidePlayerSuggestions(${idx}),150)">
         <div id="playerSuggest-${idx}" class="player-suggest" style="display:none;"></div>
       </div>
-      <select onchange="updatePlayerDiscount(${idx}, this.value)">${DISCOUNT_OPTIONS.map(d=>`<option value="${d}" ${d===p.discount?'selected':''}>${d===100?'100 %':d+' %'}</option>`).join('')}</select>
+      ${canEditDiscount
+        ? `<select onchange="updatePlayerDiscount(${idx}, this.value)">${DISCOUNT_OPTIONS.map(d=>`<option value="${d}" ${d===p.discount?'selected':''}>${d===100?'100 %':d+' %'}</option>`).join('')}</select>`
+        : `<span class="p-discount-readonly" title="Sleva se přiřadí automaticky podle skutečného členství">${p.memberId ? p.discount+' %' : 'host'}</span>`}
       <button class="rm" onclick="removePlayerRow(${idx})">×</button>
     </div>`).join('');
   document.getElementById('addPlayerBtn').style.display = booking.players.length >= booking.loc.maxPlayers ? 'none' : '';
@@ -1138,6 +1142,7 @@ async function updatePlayerName(idx, val){
   const p = booking.players.filter(p=>!p.isOrganizer)[idx];
   p.name = val;
   p.memberId = null; // ruční přepis = přestává to být potvrzená shoda na účet
+  if(!isAdmin()) p.discount = 0; // host bez ověřené shody = žádná sleva, dokud appka nenajde reálný účet
   clearTimeout(playerSearchTimer);
   const box = document.getElementById(`playerSuggest-${idx}`);
   if(!box) return;
@@ -1145,14 +1150,15 @@ async function updatePlayerName(idx, val){
   playerSearchTimer = setTimeout(async ()=>{
     const { data, error } = await sb.rpc('search_members', { search_term: val.trim() });
     if(error || !data || !data.length){ box.style.display = 'none'; return; }
-    box.innerHTML = data.map(m=>`<div class="player-suggest-item" onclick="pickPlayerSuggestion(${idx},'${m.user_id}',${JSON.stringify(m.full_name)})">${m.full_name}</div>`).join('');
+    box.innerHTML = data.map(m=>`<div class="player-suggest-item" onclick='pickPlayerSuggestion(${idx},${JSON.stringify(m.user_id)},${JSON.stringify(m.full_name)},${m.discount_percent})'>${m.full_name}${!isAdmin() && m.discount_percent>0 ? ` <small style="color:var(--green);">(${m.discount_percent} % sleva)</small>` : ''}</div>`).join('');
     box.style.display = '';
   }, 250);
 }
-function pickPlayerSuggestion(idx, userId, fullName){
+function pickPlayerSuggestion(idx, userId, fullName, discountPercent){
   const p = booking.players.filter(p=>!p.isOrganizer)[idx];
   p.name = fullName; p.memberId = userId;
-  renderPlayersList();
+  if(!isAdmin()) p.discount = discountPercent || 0; // reálná sleva ze skutečného profilu, appka to i tak ověří na serveru
+  renderPlayersList(); updatePriceBox();
 }
 function hidePlayerSuggestions(idx){
   const box = document.getElementById(`playerSuggest-${idx}`);
