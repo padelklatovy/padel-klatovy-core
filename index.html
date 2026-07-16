@@ -646,7 +646,12 @@ function renderPaymentQR(container, amount, vs, message){
     correctLevel: QRCode.CorrectLevel.M
   });
 }
-function avgDiscount(players){ if(!players.length) return 0; return Math.round(players.reduce((s,p)=>s+p.discount,0) / players.length); }
+function avgDiscount(players, maxPlayers){
+  const cap = maxPlayers || (booking && booking.loc && booking.loc.maxPlayers) || players.length || 1;
+  if(!players.length) return 0;
+  const totalDiscount = players.reduce((s,p)=>s+(p.discount||0),0);
+  return Math.round(totalDiscount / cap);
+}
 function populateLevelSelect(selectId, selectedCode){
   const el = document.getElementById(selectId); if(!el) return;
   el.innerHTML = PLAYER_LEVELS.map(l=>`<option value="${l.code}" ${l.code===(selectedCode||'C2')?'selected':''}>${l.label}</option>`).join('');
