@@ -849,7 +849,7 @@ function renderProductSelector(){
     const media = VENUE_MEDIA[slug] || {};
     const occ = todayOccupancy[slug];
     let occHtml = '';
-    if(occ && occ.totalHours > 0){
+    if(isAdmin() && occ && occ.totalHours > 0){
       const pct = Math.round(occ.occupiedHours / occ.totalHours * 100);
       const color = pct >= 80 ? 'var(--red)' : pct >= 40 ? 'var(--amber)' : 'var(--green)';
       occHtml = `<div class="occ-bar-wrap"><div class="occ-bar" style="width:${Math.min(pct,100)}%;background:${color};"></div></div><span class="p-meta">Dnes obsazeno: <b style="color:${color};">${pct} %</b></span>`;
