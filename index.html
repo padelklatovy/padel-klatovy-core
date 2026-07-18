@@ -374,6 +374,14 @@
     <div class="admin-grid" id="adminStats"></div>
     <div class="section-title">Čeká na platbu</div>
     <table class="admin-table" id="pendingTable"></table>
+
+    <div class="section-title">Nespárované platby</div>
+    <p class="page-sub" style="margin-top:-6px;">Peníze přišly na účet, ale appka je nedokázala spárovat s žádnou rezervací — vyžaduje ruční kontrolu.</p>
+    <table class="admin-table" id="unmatchedTable"></table>
+
+    <div class="section-title">Čeká na vrácení peněz</div>
+    <p class="page-sub" style="margin-top:-6px;">Zaplacené rezervace, které byly zrušené — peníze zůstaly na účtu, dokud je ručně nepošleš zpátky a neoznačíš jako vyřešené.</p>
+    <table class="admin-table" id="refundsTable"></table>
     <div class="section-title">Členové</div>
     <p class="page-sub" style="margin-top:-6px;">Skutečná tabulka <code>member_profiles</code>. Slevu edituje jen admin zde.</p>
     <div class="field" style="max-width:320px;"><input id="memberSearch" placeholder="Začněte psát jméno..." oninput="renderMembers()"></div>
@@ -1437,9 +1445,12 @@ async function renderMine(){
 }
 async function cancelReservation(id){
   const status = isAdmin() ? 'cancelled_by_admin' : 'cancelled_by_user';
-  const { error } = await sb.from('reservations').update({status}).eq('id', id);
+  const { data: existing } = await sb.from('reservations').select('status, amount_due').eq('id', id).single();
+  const wasPaid = existing && existing.status === 'paid_confirmed' && Number(existing.amount_due) > 0;
+  const updatePayload = wasPaid ? { status, refund_status: 'pending', refund_amount: existing.amount_due } : { status };
+  const { error } = await sb.from('reservations').update(updatePayload).eq('id', id);
   if(error){ toast('Chyba: '+error.message); return; }
-  toast('Rezervace zrušena');
+  toast(wasPaid ? 'Rezervace zrušena — čeká na vrácení peněz' : 'Rezervace zrušena');
   await renderAll();
 }
 
@@ -1923,6 +1934,64 @@ function hideAllVenuesGrid(){
   document.getElementById('productSelector').style.display = '';
   document.getElementById('reservationsIntro').style.display = '';
 }
+async function renderUnmatchedPayments(){
+  const table = document.getElementById('unmatchedTable'); if(!table) return;
+  const { data, error } = await sb.from('unmatched_fio_transactions').select('*').eq('status','pending').order('transaction_date',{ascending:false});
+  if(error){ table.innerHTML = `<tr><td style="padding:16px;color:#948e83;">Chyba: ${error.message}</td></tr>`; return; }
+  table.innerHTML = data && data.length ? `
+    <tr><th>Datum</th><th>Částka</th><th>VS</th><th>Účet plátce</th><th>Jméno</th><th>Důvod</th><th></th></tr>
+    ${data.map(t=>`<tr>
+      <td>${t.transaction_date || '—'}</td><td>${t.amount} Kč</td><td>${t.variable_symbol || '—'}</td>
+      <td>${t.payer_account || '—'}</td><td>${t.payer_name || '—'}</td><td>${t.reason}</td>
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-sm btn-green" onclick="resolveUnmatched('${t.id}')">Vyřešeno</button>
+        <button class="btn btn-sm btn-ghost" onclick="ignoreUnmatched('${t.id}')">Ignorovat</button>
+      </td></tr>`).join('')}
+  ` : `<tr><td style="padding:16px;color:#948e83;">Žádné nespárované platby 🎉</td></tr>`;
+}
+async function resolveUnmatched(id){
+  const note = prompt('Poznámka, jak bylo vyřešeno (nepovinné):') || '';
+  const { error } = await sb.from('unmatched_fio_transactions').update({ status:'resolved', resolved_note: note, resolved_at: new Date().toISOString() }).eq('id', id);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Označeno jako vyřešeno');
+  await renderUnmatchedPayments();
+}
+async function ignoreUnmatched(id){
+  const { error } = await sb.from('unmatched_fio_transactions').update({ status:'ignored', resolved_at: new Date().toISOString() }).eq('id', id);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Ignorováno');
+  await renderUnmatchedPayments();
+}
+async function renderRefundsPending(){
+  const table = document.getElementById('refundsTable'); if(!table) return;
+  const { data, error } = await sb.from('reservations').select('*').eq('refund_status','pending').order('date',{ascending:false});
+  if(error){ table.innerHTML = `<tr><td style="padding:16px;color:#948e83;">Chyba: ${error.message}</td></tr>`; return; }
+  if(!data || !data.length){ table.innerHTML = `<tr><td style="padding:16px;color:#948e83;">Nic nečeká na vrácení 🎉</td></tr>`; return; }
+
+  const resIds = data.map(r=>r.id);
+  const { data: pays } = await sb.from('payments').select('reservation_id, payer_account, variable_symbol').in('reservation_id', resIds);
+  const payByRes = {}; (pays||[]).forEach(p=>{ payByRes[p.reservation_id] = p; });
+
+  table.innerHTML = `
+    <tr><th>Hřiště</th><th>Kurt</th><th>Datum</th><th>Kdo</th><th>Částka</th><th>Účet plátce</th><th>VS</th><th></th></tr>
+    ${data.map(r=>{
+      const court = findCourt(r.court_id);
+      const pay = payByRes[r.id];
+      return `<tr>
+        <td>${court.locationName}</td><td>${court.name}</td><td>${r.date}</td>
+        <td>${r.organizer_name || '—'}</td><td>${r.refund_amount || r.amount_due} Kč</td>
+        <td>${pay?.payer_account || '—'}</td><td>${pay?.variable_symbol || '—'}</td>
+        <td><button class="btn btn-sm btn-green" onclick="markRefunded('${r.id}')">Označit jako vráceno</button></td>
+      </tr>`;
+    }).join('')}
+  `;
+}
+async function markRefunded(id){
+  const { error } = await sb.from('reservations').update({ refund_status:'done', refund_marked_at: new Date().toISOString() }).eq('id', id);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Označeno jako vráceno');
+  await renderRefundsPending();
+}
 async function renderAdmin(){
   if(!isAdmin()){
     document.getElementById('view-admin').innerHTML = `<h1 class="page-title">Admin</h1><div class="empty-state"><div class="em-title">Přístup jen pro adminy</div>Přihlas se účtem s rolí admin (nastaví se přímo v tabulce member_profiles).</div>`;
@@ -1960,6 +2029,8 @@ async function renderAdmin(){
   renderSeriesAdmin();
   await renderMembers();
   await renderPendingMemberships();
+  await renderUnmatchedPayments();
+  await renderRefundsPending();
 
   const courtSel = document.getElementById('eventCourt');
   courtSel.innerHTML = '';
@@ -2252,9 +2323,15 @@ async function shortenSeries(seriesId){
 }
 async function cancelSeries(seriesId){
   const status = isAdmin() ? 'cancelled_by_admin' : 'cancelled_by_user';
+  const { data: paidOnes } = await sb.from('reservations').select('id, amount_due').eq('series_id', seriesId).eq('status','paid_confirmed');
   const { error } = await sb.from('reservations').update({status}).eq('series_id', seriesId).not('status','in','(cancelled_by_user,cancelled_by_admin,expired)');
   if(error){ toast('Chyba: '+error.message); return; }
-  toast('Celá série zrušena');
+  if(paidOnes && paidOnes.length){
+    for(const r of paidOnes){
+      await sb.from('reservations').update({refund_status:'pending', refund_amount:r.amount_due}).eq('id', r.id);
+    }
+  }
+  toast(paidOnes && paidOnes.length ? `Celá série zrušena — ${paidOnes.length}× čeká na vrácení peněz` : 'Celá série zrušena');
   await renderAll();
 }
 
