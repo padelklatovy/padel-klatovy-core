@@ -647,9 +647,15 @@ function renderPaymentQR(container, amount, vs, message){
   });
 }
 function avgDiscount(players, maxPlayers){
-  const cap = maxPlayers || (booking && booking.loc && booking.loc.maxPlayers) || players.length || 1;
   if(!players.length) return 0;
   const totalDiscount = players.reduce((s,p)=>s+(p.discount||0),0);
+  if(booking && booking.adminMode){
+    // Admin ručně nastavuje cenu rezervace — sleva se má vztahovat na CELOU
+    // částku, ne jen na poměrný podíl podle kapacity kurtu (to platí jen
+    // u běžných členů, kde appka fér rozpočítává skutečné slevy).
+    return Math.round(totalDiscount / players.length);
+  }
+  const cap = maxPlayers || (booking && booking.loc && booking.loc.maxPlayers) || players.length || 1;
   return Math.round(totalDiscount / cap);
 }
 function populateLevelSelect(selectId, selectedCode){
