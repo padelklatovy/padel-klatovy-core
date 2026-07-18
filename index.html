@@ -1005,8 +1005,9 @@ function openBookingModal({courtId, startHour, adminMode}){
       <div class="field"><label>Jméno hráče (pro koho rezervace je — ukáže se v gridu)</label><input id="orgName" placeholder="Jana Nováková" oninput="syncOrganizer()"></div>
       <div class="field"><label>Telefon (volitelné)</label><input id="orgPhone" placeholder="+420 600 000 000"></div>
       <div class="field"><label>Sleva organizátora</label>
-        <select id="orgDiscount" onchange="syncOrganizer()">${DISCOUNT_OPTIONS.map(d=>`<option value="${d}">${d===100?'100 % (zdarma)':d+' %'}</option>`).join('')}</select>
+        <select id="orgDiscount" onchange="syncOrganizer()">${DISCOUNT_OPTIONS.map(d=>`<option value="${d}" ${d===(profile.discount_percent||0)?'selected':''}>${d===100?'100 % (zdarma)':d+' %'}</option>`).join('')}</select>
       </div>`;
+    syncOrganizer();
   } else {
     orgBox.innerHTML = `<div class="player-row fixed"><span>Organizátor: <b>${profile.full_name}</b> — sleva ${profile.discount_percent} %</span></div>`;
   }
