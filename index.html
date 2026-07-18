@@ -312,7 +312,7 @@
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
         <div class="field" style="flex:2;min-width:200px;margin:0;"><label>Název akce</label><input id="eventName" placeholder="např. Přednáška o výživě"></div>
         <div class="field" style="flex:1;min-width:160px;margin:0;"><label>Kategorie</label>
-          <select id="eventCategory">
+          <select id="eventCategory" onchange="updatePriceModeLabels()">
             <option value="turnaj">Turnaj</option>
             <option value="prednaska">Přednáška</option>
             <option value="social">Social</option>
@@ -328,10 +328,10 @@
         <div class="field" style="flex:2;min-width:200px;margin:0;"><label>Místo (text, jen pokud neblokuješ kurt)</label><input id="eventLocation" placeholder="např. Klubovna"></div>
         <div class="field" style="flex:1;min-width:120px;margin:0;"><label>Kapacita</label><input type="number" id="eventCapacity" placeholder="např. 20"></div>
         <div class="field" style="flex:1;min-width:120px;margin:0;"><label>Cena (Kč)</label><input type="number" id="eventPrice" placeholder="0 = zdarma"></div>
-        <div class="field" style="flex:1;min-width:140px;margin:0;"><label>Cena je za</label>
+        <div class="field" style="flex:1;min-width:180px;margin:0;"><label id="priceModeLabel">Cena je za</label>
           <select id="eventPriceMode">
-            <option value="osoba">osobu</option>
-            <option value="dvojice">dvojici</option>
+            <option value="osoba" id="priceModeOptOsoba">osobu</option>
+            <option value="dvojice" id="priceModeOptDvojice">dvojici</option>
           </select>
         </div>
       </div>
@@ -1516,9 +1516,12 @@ async function renderCalendar(){
     } else {
       actionHtml = `<button class="btn btn-sm btn-dark" onclick='openEventSignupModal(${JSON.stringify(ev)})'>Přihlásit se</button>`;
     }
+    const categoryLabel = ev.category === 'turnaj'
+      ? (ev.price_mode === 'osoba' ? 'Turnaj — Americano' : 'Turnaj — dvojice')
+      : (CATEGORY_LABELS[ev.category] || ev.category);
     return `<div class="card"><div class="info">
       <b>${ev.name}</b>
-      <div class="meta">${CATEGORY_LABELS[ev.category]||ev.category} · ${fmtDate(ev.date)} · ${(ev.time_from||'').slice(0,5)}–${(ev.time_to||'').slice(0,5)}${ev.location?` · ${ev.location}`:''}</div>
+      <div class="meta">${categoryLabel} · ${fmtDate(ev.date)} · ${(ev.time_from||'').slice(0,5)}–${(ev.time_to||'').slice(0,5)}${ev.location?` · ${ev.location}`:''}</div>
       ${ev.description_short ? `<div class="meta">${ev.description_short}</div>` : ''}
       <div class="meta">${priceLabel}${ev.capacity?` · ${taken}/${ev.capacity} přihlášeno`:''}</div>
     </div><div>${actionHtml}</div></div>`;
@@ -2002,6 +2005,12 @@ async function adminConfirm(id){
   toast(res.series_id ? 'Celá série ručně potvrzena' : 'Rezervace ručně potvrzena');
   await renderAll();
 }
+function updatePriceModeLabels(){
+  const isTurnaj = document.getElementById('eventCategory').value === 'turnaj';
+  document.getElementById('priceModeLabel').textContent = isTurnaj ? 'Typ turnaje' : 'Cena je za';
+  document.getElementById('priceModeOptOsoba').textContent = isTurnaj ? 'osobu — Americano (jednotlivci)' : 'osobu';
+  document.getElementById('priceModeOptDvojice').textContent = isTurnaj ? 'dvojici — klasický turnaj' : 'dvojici';
+}
 async function createEvent(){
   const name = document.getElementById('eventName').value.trim();
   const category = document.getElementById('eventCategory').value;
@@ -2322,6 +2331,7 @@ async function renderAll(){
 }
 
 (async function init(){
+  updatePriceModeLabels();
   await loadVenues();
   await loadTodayOccupancy();
   renderProductSelector();
