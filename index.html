@@ -1648,6 +1648,7 @@ async function openAdminSlotModal(courtId, hour, existing){
     box.innerHTML = `
       <div class="price-box" style="margin-top:0;">
         <div class="price-row"><span>Kdo / co</span><span><b>${who}</b></span></div>
+        ${existing.organizer_phone ? `<div class="price-row"><span>Telefon</span><span><a href="tel:${existing.organizer_phone}" style="color:var(--green);font-weight:600;">${existing.organizer_phone}</a></span></div>` : ''}
         <div class="price-row"><span>Čas</span><span>${formatHour(existing.start_hour)}–${formatHour(existing.end_hour)}</span></div>
         <div class="price-row"><span>Stav</span><span>${statusLabel}</span></div>
         ${seriesRangeHtml}
