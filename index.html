@@ -622,8 +622,12 @@ function findCourt(courtId){
   }
   return {name:'Neznámý kurt', sub:'', locationSlug:null, locationName:'—'};
 }
-function courtOpenAt(court, hour){
-  return court.isActive !== false && hour >= court.dayStart && hour < court.dayEnd;
+function courtOpenAt(court, hour, dateStr){
+  const dow = dateStr ? new Date(dateStr+'T00:00:00').getDay() : null;
+  const w = (dow!=null && court.weekly) ? court.weekly[dow] : null;
+  const start = w ? w.start : court.dayStart;
+  const end = w ? w.end : court.dayEnd;
+  return court.isActive !== false && hour >= start && hour < end;
 }
 function formatHour(h){ const hh=Math.floor(h); const mm=Math.round((h-hh)*60); return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'); }
 function fmtDate(iso){ const d = new Date(iso+'T00:00:00'); return d.toLocaleDateString('cs-CZ', {weekday:'long', day:'numeric', month:'long'}); }
@@ -802,6 +806,11 @@ async function loadVenues(){
   CLUB_ID = clubs && clubs[0] ? clubs[0].id : null;
   const { data: venues, error } = await sb.from('venues').select('*, courts(*)').order('name');
   if(error){ toast('Chyba načítání hřišť: ' + error.message); return; }
+  const { data: weeklyRows } = await sb.from('court_hours_overrides').select('*');
+  const weeklyByCourtRaw = {};
+  (weeklyRows||[]).forEach(w=>{
+    (weeklyByCourtRaw[w.court_id] = weeklyByCourtRaw[w.court_id] || {})[w.day_of_week] = { start: Number(w.start_hour), end: Number(w.end_hour) };
+  });
   venuesConfig = {};
   venues.forEach(v=>{
     const courts = v.courts.map(c=>({
@@ -811,9 +820,11 @@ async function loadVenues(){
       overrideEnd: c.day_end_hour!=null ? Number(c.day_end_hour) : null,
       dayStart: c.day_start_hour!=null ? Number(c.day_start_hour) : Number(v.day_start_hour),
       dayEnd: c.day_end_hour!=null ? Number(c.day_end_hour) : Number(v.day_end_hour),
+      weekly: weeklyByCourtRaw[c.id] || {},
     })).sort((a,b)=> (a.sortOrder ?? 999) - (b.sortOrder ?? 999) || a.name.localeCompare(b.name));
-    const allStarts = courts.map(c=>c.dayStart).concat([Number(v.day_start_hour)]);
-    const allEnds = courts.map(c=>c.dayEnd).concat([Number(v.day_end_hour)]);
+    const weeklyExtremes = courts.flatMap(c=>Object.values(c.weekly)).flatMap(w=>[w.start,w.end]);
+    const allStarts = courts.map(c=>c.dayStart).concat([Number(v.day_start_hour)]).concat(weeklyExtremes);
+    const allEnds = courts.map(c=>c.dayEnd).concat([Number(v.day_end_hour)]).concat(weeklyExtremes);
     venuesConfig[v.slug] = {
       id: v.id, clubId: v.club_id, name: v.name, sport: v.sport,
       priceHour: Number(v.price_per_hour), minDuration: Number(v.min_duration_hours),
@@ -908,7 +919,12 @@ function findReservationAt(courtId, hour){
 }
 function computeMaxDuration(loc, courtId, startHour){
   const court = loc.courts.find(c=>c.id===courtId);
-  const closeAt = court ? court.dayEnd : loc.dayEnd;
+  let closeAt = court ? court.dayEnd : loc.dayEnd;
+  if(court && court.weekly){
+    const dow = new Date(selectedDate+'T00:00:00').getDay();
+    const w = court.weekly[dow];
+    if(w) closeAt = w.end;
+  }
   let h = startHour;
   while(h < closeAt){
     const occ = gridReservations.find(r => r.court_id===courtId && h >= r.start_hour && h < r.end_hour && !['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status));
@@ -940,7 +956,7 @@ async function renderGrid(){
     let i = 0;
     while(i < starts.length){
       const s = starts[i];
-      if(!courtOpenAt(court, s)){
+      if(!courtOpenAt(court, s, selectedDate)){
         html += `<div class="cell"><div class="slot closed"></div></div>`;
         i += 1;
         continue;
@@ -1800,11 +1816,15 @@ function findPossibleMembershipMatch(fullName){
 function renderCourtsManageTable(){
   const tbl = document.getElementById('courtsManageTable');
   if(!tbl) return;
+  const dayNamesShort = ['Ne','Po','Út','St','Čt','Pá','So'];
   let rows = '';
   OVERVIEW_ORDER.forEach(slug=>{
     const loc = venuesConfig[slug];
     if(!loc) return;
     loc.courts.forEach(court=>{
+      const weeklyChips = Object.entries(court.weekly||{}).map(([dow,w])=>
+        `<span class="status-pill" style="cursor:pointer;margin:2px;" onclick="removeWeeklyOverride('${court.id}',${dow})" title="Klikni pro odstranění">${dayNamesShort[dow]} ${w.start}–${w.end} ×</span>`
+      ).join('');
       rows += `<tr>
         <td>${loc.name}</td>
         <td>${court.name}${court.sub?` <small style="color:#6E6E6E;">${court.sub}</small>`:''}</td>
@@ -1814,10 +1834,41 @@ function renderCourtsManageTable(){
         </label></td>
         <td><input type="number" step="0.5" min="0" max="24" style="width:64px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;" placeholder="${loc.dayStart}" value="${court.overrideStart!=null?court.overrideStart:''}" onchange="updateCourtHours('${court.id}','day_start_hour',this.value)"></td>
         <td><input type="number" step="0.5" min="0" max="24" style="width:64px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;" placeholder="${loc.dayEnd}" value="${court.overrideEnd!=null?court.overrideEnd:''}" onchange="updateCourtHours('${court.id}','day_end_hour',this.value)"></td>
+        <td>${weeklyChips}<button class="btn btn-sm btn-ghost" onclick="addWeeklyOverride('${court.id}')">+ Výjimka</button></td>
       </tr>`;
     });
   });
-  tbl.innerHTML = `<thead><tr><th>Areál</th><th>Kurt</th><th>Stav</th><th>Otevřeno od</th><th>Otevřeno do</th></tr></thead><tbody>${rows}</tbody>`;
+  tbl.innerHTML = `<thead><tr><th>Areál</th><th>Kurt</th><th>Stav</th><th>Otevřeno od</th><th>Otevřeno do</th><th>Výjimky podle dne (např. neděle)</th></tr></thead><tbody>${rows}</tbody>`;
+}
+async function addWeeklyOverride(courtId){
+  const dayNames = ['Neděle','Pondělí','Úterý','Středa','Čtvrtek','Pátek','Sobota'];
+  const dayInput = prompt('Pro který den v týdnu je výjimka?\n0 = Neděle\n1 = Pondělí\n2 = Úterý\n3 = Středa\n4 = Čtvrtek\n5 = Pátek\n6 = Sobota');
+  if(dayInput === null) return;
+  const dow = parseInt(dayInput, 10);
+  if(isNaN(dow) || dow<0 || dow>6){ toast('Neplatné číslo dne (0–6)'); return; }
+  const startInput = prompt(`Otevřeno od kolika (${dayNames[dow]})? Např. 9`);
+  if(startInput === null || startInput==='') return;
+  const endInput = prompt(`Otevřeno do kolika (${dayNames[dow]})? Např. 19`);
+  if(endInput === null || endInput==='') return;
+  const { error } = await sb.from('court_hours_overrides').upsert(
+    { court_id: courtId, day_of_week: dow, start_hour: Number(startInput), end_hour: Number(endInput) },
+    { onConflict: 'court_id,day_of_week' }
+  );
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast(`Výjimka pro ${dayNames[dow]} uložena`);
+  await loadVenues();
+  renderCourtsManageTable();
+  await renderAllVenuesOverview();
+  if(currentLocationId) await renderGrid();
+}
+async function removeWeeklyOverride(courtId, dow){
+  const { error } = await sb.from('court_hours_overrides').delete().eq('court_id', courtId).eq('day_of_week', dow);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Výjimka odstraněna');
+  await loadVenues();
+  renderCourtsManageTable();
+  await renderAllVenuesOverview();
+  if(currentLocationId) await renderGrid();
 }
 async function updateCourtActive(courtId, checked){
   const { data, error } = await sb.from('courts').update({ is_active: checked }).eq('id', courtId).select('id');
@@ -1863,7 +1914,7 @@ function buildAllVenuesGridsHtml(allRes){
       let i=0;
       while(i<starts.length){
         const s = starts[i];
-        if(!courtOpenAt(court, s)){
+        if(!courtOpenAt(court, s, selectedDate)){
           html += `<div class="cell"><div class="slot closed"></div></div>`;
           i += 1;
           continue;
