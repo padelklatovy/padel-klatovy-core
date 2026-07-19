@@ -615,7 +615,7 @@ function activeLoc(){ return venuesConfig[currentLocationId]; }
 function isAdmin(){ return profile && (profile.role==='admin' || profile.role==='owner'); }
 function slotStarts(loc){
   const arr = []; const step = loc.slotStep;
-  for(let h = loc.dayStart; h <= loc.dayEnd - loc.minDuration + 1e-9; h += step){ arr.push(Math.round(h*(1/step))/(1/step)); }
+  for(let h = loc.dayStart; h <= loc.dayEnd - step + 1e-9; h += step){ arr.push(Math.round(h*(1/step))/(1/step)); }
   return arr;
 }
 function findCourt(courtId){
