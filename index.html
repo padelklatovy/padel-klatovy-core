@@ -774,6 +774,7 @@ function renderHeader(){
       <div class="profile-pill" onclick="toggleProfileMenu(event)">
         <span class="dot"></span> ${profile.full_name.split(' ')[0]} ${isAdmin()?'· admin':''}
         <div class="profile-menu" id="profileMenu">
+          <button onclick="event.stopPropagation();enablePushNotifications()">🔔 Povolit notifikace</button>
           <button onclick="event.stopPropagation();closeProfileMenu();logout()">Odhlásit se</button>
         </div>
       </div>`;
@@ -1266,13 +1267,19 @@ function buildBasePayload(date){
   };
 }
 
+function friendlyReservationError(error){
+  if(error && error.message && error.message.includes('no_overlapping_active_reservations')){
+    return 'Mezitím to tu někdo jiný zabral — tenhle termín je teď obsazený. Zkus prosím jiný čas.';
+  }
+  return 'Chyba: ' + (error?.message || 'neznámá chyba');
+}
 async function confirmBookingSingle(){
   const isOpenMatch = document.getElementById('openMatchCheck').checked;
   const { payload, amount } = buildBasePayload(selectedDate);
   payload.is_open_match = isOpenMatch;
 
   const { data: reservation, error } = await sb.from('reservations').insert(payload).select().single();
-  if(error){ toast('Chyba: ' + error.message); return; }
+  if(error){ toast(friendlyReservationError(error)); await renderGrid(); return; }
 
   if(isOpenMatch){
     await sb.from('open_matches').insert({
@@ -1333,10 +1340,7 @@ async function confirmBookingRecurring(){
   });
 
   const { data: inserted, error } = await sb.from('reservations').insert(rows).select();
-  if(error){ toast('Chyba: ' + error.message); return; }
-
-  const pendingOnes = inserted.filter(r=>r.status==='pending_payment');
-  let anchorPayment = null;
+  if(error){ toast(friendlyReservationError(error)); await renderGrid(); return; }
 
   if(pendingOnes.length){
     if(booking.adminMode){
@@ -2466,8 +2470,44 @@ async function renderAll(){
   if(activeTab==='admin' && isAdmin()) await renderAdmin();
 }
 
+/* ================= PUSH NOTIFIKACE ================= */
+const VAPID_PUBLIC_KEY = 'BEBxA769m88Yjer2RUMmvZVCWGcuFB3MxFqLD8laCIX4H_pjRJNOaxh9Ywy3BBXvxaBhwNq6hFnTQ3Q8rysy6tE';
+async function initPushSupport(){
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try { await navigator.serviceWorker.register('/padel-klatovy-core/sw.js'); }
+  catch(e){ console.error('SW registrace selhala', e); }
+}
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g,'+').replace(/_/g,'/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for(let i=0;i<rawData.length;i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+async function enablePushNotifications(){
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){ toast('Tenhle prohlížeč push notifikace nepodporuje'); return; }
+  if(!profile){ toast('Nejdřív dokonči registraci'); return; }
+  const perm = await Notification.requestPermission();
+  if(perm !== 'granted'){ toast('Notifikace nepovoleny'); return; }
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if(!sub){
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
+  }
+  const subJson = sub.toJSON();
+  const { error } = await sb.from('push_subscriptions').upsert(
+    { user_id: profile.user_id, endpoint: subJson.endpoint, keys: subJson.keys },
+    { onConflict: 'endpoint' }
+  );
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Notifikace zapnuty ✓');
+  closeProfileMenu();
+}
+
 (async function init(){
   updatePriceModeLabels();
+  initPushSupport();
   await loadVenues();
   await loadTodayOccupancy();
   renderProductSelector();
