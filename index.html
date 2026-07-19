@@ -495,8 +495,13 @@
         </div>
       </div>
     </div>
+    <div id="smartFillNudge" style="display:none;background:#F2EEFF;border:1px solid #D9CCFF;border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+      <div style="font-weight:600;font-size:13px;color:var(--ink);margin-bottom:2px;" id="smartFillNudgeTitle"></div>
+      <div style="font-size:12px;color:#6E6E6E;margin-bottom:8px;">Appka to nabídne ostatním hráčům a dá ti vědět, jakmile se někdo přidá.</div>
+      <button type="button" class="btn btn-sm" style="background:#8B6FEA;color:#fff;border:none;" onclick="enableSmartFillFromNudge()">🎾 Zapnout Smart Fill</button>
+    </div>
     <div class="checkbox-row" id="openMatchRow">
-      <input type="checkbox" id="openMatchCheck" onchange="document.getElementById('openMatchLevelBox').style.display=this.checked?'block':'none'">
+      <input type="checkbox" id="openMatchCheck" onchange="document.getElementById('openMatchLevelBox').style.display=this.checked?'block':'none';updateSmartFillNudge();">
       <div style="flex:1;">
         <div class="cb-title">Chci hledat spoluhráče</div>
         <div class="cb-sub">Rezervace se zobrazí v Open Matches, ostatní se budou moct přihlásit.</div>
@@ -1221,6 +1226,28 @@ function removePlayerRow(idx){
   booking.players = booking.players.filter(p=>p!==target);
   renderPlayersList(); updatePriceBox();
 }
+function updateSmartFillNudge(){
+  const nudge = document.getElementById('smartFillNudge');
+  const checkbox = document.getElementById('openMatchCheck');
+  if(!nudge || !checkbox) return;
+  const maxPlayers = booking.loc.maxPlayers || 4;
+  const filled = booking.players.length;
+  const missing = maxPlayers - filled;
+  if(checkbox.checked || missing <= 0 || filled === 0){
+    nudge.style.display = 'none';
+    return;
+  }
+  document.getElementById('smartFillNudgeTitle').textContent =
+    `Chybí ${missing} hráč${missing===1?'':(missing<5?'i':'')} do plného kurtu.`;
+  nudge.style.display = '';
+}
+function enableSmartFillFromNudge(){
+  const checkbox = document.getElementById('openMatchCheck');
+  checkbox.checked = true;
+  checkbox.dispatchEvent(new Event('change'));
+  document.getElementById('smartFillNudge').style.display = 'none';
+  document.getElementById('openMatchRow').scrollIntoView({behavior:'smooth', block:'center'});
+}
 function updatePriceBox(){
   const base = Math.round(booking.duration * booking.loc.priceHour);
   const discount = avgDiscount(booking.players.length ? booking.players : [{discount:0}]);
@@ -1233,6 +1260,7 @@ function updatePriceBox(){
   } else { document.getElementById('discountRow').style.display='none'; }
   document.getElementById('totalPriceLabel').textContent = total + ' Kč';
   updateSeriesSummary();
+  updateSmartFillNudge();
 }
 
 async function confirmBooking(){
@@ -1288,10 +1316,11 @@ async function confirmBookingSingle(){
   if(error){ toast(friendlyReservationError(error)); await renderGrid(); return; }
 
   if(isOpenMatch){
+    const missing = Math.max(1, (booking.loc.maxPlayers || 4) - booking.players.length);
     await sb.from('open_matches').insert({
       reservation_id: reservation.id,
       organizer_member_id: booking.adminMode ? null : profile.user_id,
-      players_needed: 2,
+      players_needed: missing,
       level: document.getElementById('openMatchLevel').value,
       status: 'open'
     });
@@ -2523,12 +2552,19 @@ async function renderPlayerDashboard(el){
   }
 
   if(openToday.length){
-    html += `<div class="section-title">👥 Open Matches — dnes hledají hráče</div><div class="card-list">` +
+    html += `<div class="section-title">👥 Volné místo — dnes hledají hráče</div><div class="card-list">` +
       openToday.map(r=>{
         const om = r.open_matches[0];
         const levelLabel = (PLAYER_LEVELS.find(l=>l.code===om.level)||{label:om.level||''}).label;
-        return `<div class="card"><div class="info"><b>${formatHour(r.start_hour)} · úroveň ${levelLabel}</b><div class="meta">chybí ${om.players_needed - om.open_match_players.length} hráč(i)</div></div>
-          <div class="actions"><button class="btn btn-sm btn-green" onclick="joinOpenMatch('${r.id}')">Přidat se</button></div></div>`;
+        const joined = om.open_match_players.length;
+        const missing = om.players_needed - joined;
+        const missingText = missing===1 ? 'Chybíš jen ty.' : `Chybí ${missing} hráči.`;
+        return `<div class="card" style="border-left:4px solid #8B6FEA;"><div class="info">
+            <b>🎾 Volné místo — ${formatHour(r.start_hour)}–${formatHour(r.end_hour)}</b>
+            <div class="meta">${r.venues?.name||''} · ${r.courts?.name||''} · úroveň ${levelLabel}</div>
+            <div class="meta">${joined} hráč${joined===1?'':'i'} už ${joined===1?'je':'jsou'}. ${missingText}</div>
+          </div>
+          <div class="actions"><button class="btn btn-sm" style="background:#8B6FEA;color:#fff;border:none;" onclick="joinOpenMatch('${r.id}')">Přidat se</button></div></div>`;
       }).join('') + `</div>`;
   }
 
