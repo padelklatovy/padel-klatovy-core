@@ -739,11 +739,21 @@ async function loadProfile(){
     profile = data;
   }
 }
+function normalizeCzPhone(raw){
+  if(!raw) return null;
+  let digits = raw.replace(/[^0-9+]/g, '').replace(/^00/, '+');
+  if(/^\+420[0-9]{9}$/.test(digits)) return digits;
+  if(/^420[0-9]{9}$/.test(digits)) return '+'+digits;
+  if(/^[0-9]{9}$/.test(digits)) return '+420'+digits;
+  return null;
+}
 async function saveProfile(){
   const full_name = document.getElementById('profileName').value.trim();
-  const phone = document.getElementById('profilePhone').value.trim();
+  const rawPhone = document.getElementById('profilePhone').value.trim();
   const level = document.getElementById('profileLevel').value;
-  if(!full_name || !phone){ toast('Vyplň jméno i telefon'); return; }
+  if(!full_name || !rawPhone){ toast('Vyplň jméno i telefon'); return; }
+  const phone = normalizeCzPhone(rawPhone);
+  if(!phone){ toast('Telefon nevypadá jako platné číslo (např. 602 123 456 nebo +420 602 123 456)'); return; }
   const { data, error } = await sb.from('member_profiles').insert({
     user_id: session.user.id, club_id: CLUB_ID, full_name, phone, level, role:'member', discount_percent:0
   }).select().single();
