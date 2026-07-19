@@ -2205,7 +2205,7 @@ function paintMembersTable(){
     <tr><th>Zákazník</th><th>Tržba</th><th>Rezervace</th><th>Telefon</th><th>Úroveň</th><th>Role</th><th></th></tr>
     ${members.map(m=>`<tr>
       <td><b>${m.full_name}</b></td><td>${m.revenue} Kč</td><td>${m.count}</td><td>${m.phone||'—'}</td>
-      <td>${tierLabel[m.membership_tier] || 'Nečlen'} (${m.discount_percent} %)</td><td>${m.role}</td>
+      <td>${(m.role==='admin'||m.role==='owner') ? 'Admin' : (tierLabel[m.membership_tier] || 'Nečlen') + ' (' + m.discount_percent + ' %)'}</td><td>${m.role}</td>
       <td><button class="btn btn-sm btn-ghost" onclick="openMemberDetail('${m.user_id}')">Detail</button></td>
     </tr>`).join('')}
   ` : `<tr><td style="padding:16px;color:#948e83;">Žádní členové zatím neodpovídají hledání</td></tr>`;
