@@ -217,7 +217,8 @@
 </header>
 
 <nav class="tabs" id="tabs">
-  <button data-view="reservations" class="active">Rezervace</button>
+  <button data-view="dashboard" class="active">Dashboard</button>
+  <button data-view="reservations">Rezervace</button>
   <button data-view="mine">Moje rezervace</button>
   <button data-view="openmatches">Open Matches</button>
   <button data-view="calendar">Kalendář</button>
@@ -228,7 +229,11 @@
 
 <main>
 
-  <section class="view active" id="view-reservations">
+  <section class="view active" id="view-dashboard">
+    <div id="dashboardContent">Načítání…</div>
+  </section>
+
+  <section class="view" id="view-reservations">
     <h1 class="page-title">Rezervace kurtů</h1>
     <p class="page-sub" id="reservationsIntro">Vyber si hřiště / lokalitu, kde chceš rezervovat.</p>
     <button class="btn btn-ghost btn-sm" id="allVenuesToggleBtn" style="display:none;margin-bottom:14px;" onclick="showAllVenuesGrid()">📋 Zobrazit všechny areály najednou</button>
@@ -804,6 +809,7 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+e.target.dataset.view).classList.add('active');
   const v = e.target.dataset.view;
+  if(v==='dashboard') renderDashboard();
   if(v==='reservations' && isAdmin() && !currentLocationId) showAllVenuesGrid();
   if(v==='admin') renderAdmin();
   if(v==='mine') renderMine();
@@ -2460,10 +2466,150 @@ function shiftDate(delta){
 }
 
 /* ================= RENDER ALL / INIT ================= */
+/* ================= DASHBOARD ================= */
+async function renderDashboard(){
+  const el = document.getElementById('dashboardContent');
+  if(!el) return;
+  if(!session){
+    el.innerHTML = `<h1 class="page-title">Vítej v Padel Klatovy</h1><p class="page-sub">Přihlas se, ať uvidíš svůj přehled dnešního dne.</p><button class="btn btn-primary" onclick="showModal('loginOverlay')">Přihlásit se</button>`;
+    return;
+  }
+  if(!profile) return;
+  el.innerHTML = 'Načítání…';
+  if(isAdmin()) await renderAdminDashboard(el);
+  else await renderPlayerDashboard(el);
+}
+
+async function renderPlayerDashboard(el){
+  const today = todayISO();
+  const firstName = profile.full_name.split(' ')[0];
+
+  const { data: todayRes } = await sb.from('reservations')
+    .select('*, venues(name), courts(name,sub_label)')
+    .eq('date', today).eq('status','paid_confirmed');
+  const myToday = (todayRes||[]).filter(r => r.member_id===profile.user_id || (Array.isArray(r.players) && r.players.some(p=>p.memberId===profile.user_id)));
+
+  const { data: events } = await sb.from('events').select('*').gte('date', today).order('date').limit(3);
+
+  const { data: omRes } = await sb.from('reservations')
+    .select('*, open_matches(*, open_match_players(*))')
+    .eq('is_open_match', true).eq('status','paid_confirmed').eq('date', today);
+  const openToday = (omRes||[]).filter(r=>{
+    const om = r.open_matches[0];
+    if(!om) return false;
+    return om.open_match_players.length < om.players_needed && r.member_id !== profile.user_id;
+  });
+
+  const { data: unpaid } = await sb.from('reservations').select('*').eq('member_id', profile.user_id).eq('status','pending_payment');
+
+  let html = `<h1 class="page-title">Ahoj ${firstName} 👋</h1>`;
+
+  if(myToday.length){
+    html += `<div class="card-list">` + myToday.map(r=>{
+      const others = (r.players||[]).filter(p=>!p.isOrganizer).map(p=>p.name).filter(Boolean);
+      return `<div class="card" style="border-left:4px solid var(--red);">
+        <div class="info">
+          <b>🎾 Dnes hraješ — ${formatHour(r.start_hour)}–${formatHour(r.end_hour)}</b>
+          <div class="meta">${r.venues?.name||''} · ${r.courts?.name||''}</div>
+          ${others.length ? `<div class="meta">Spoluhráči: ${others.join(', ')}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('') + `</div>`;
+  }
+
+  if(events && events.length){
+    html += `<div class="section-title">📅 Nejbližší akce</div><div class="card-list">` +
+      events.map(ev=>`<div class="card"><div class="info"><b>${fmtDate(ev.date)}</b><div class="meta">${ev.name}</div></div></div>`).join('') + `</div>`;
+  }
+
+  if(openToday.length){
+    html += `<div class="section-title">👥 Open Matches — dnes hledají hráče</div><div class="card-list">` +
+      openToday.map(r=>{
+        const om = r.open_matches[0];
+        const levelLabel = (PLAYER_LEVELS.find(l=>l.code===om.level)||{label:om.level||''}).label;
+        return `<div class="card"><div class="info"><b>${formatHour(r.start_hour)} · úroveň ${levelLabel}</b><div class="meta">chybí ${om.players_needed - om.open_match_players.length} hráč(i)</div></div>
+          <div class="actions"><button class="btn btn-sm btn-green" onclick="joinOpenMatch('${r.id}')">Přidat se</button></div></div>`;
+      }).join('') + `</div>`;
+  }
+
+  html += `<div class="section-title">💳 Platby</div>`;
+  if(unpaid && unpaid.length){
+    html += `<div class="card-list">` + unpaid.map(r=>`<div class="card"><div class="info"><b>Nezaplacená rezervace</b><div class="meta">${fmtDate(r.date)}, ${formatHour(r.start_hour)} — ${r.amount_due} Kč</div></div>
+      <div class="actions"><button class="btn btn-sm btn-dark" onclick='openPaymentModalFor(${JSON.stringify(r)})'>Zaplatit</button></div></div>`).join('') + `</div>`;
+  } else {
+    html += `<p class="page-sub">Nemáš žádnou nezaplacenou rezervaci.</p>`;
+  }
+
+  if(!myToday.length){
+    html += `<div class="section-title">Co dneska podniknout?</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="document.querySelector('[data-view=reservations]').click()">Rezervovat kurt</button>
+        <button class="btn btn-ghost" onclick="document.querySelector('[data-view=openmatches]').click()">Najít Open Match</button>
+        <button class="btn btn-ghost" onclick="document.querySelector('[data-view=calendar]').click()">Prohlédnout akce</button>
+      </div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+async function renderAdminDashboard(el){
+  const today = todayISO();
+  const dow = new Date(today+'T00:00:00').getDay();
+
+  let totalAvail = 0, totalBooked = 0;
+  const { data: allToday } = await sb.from('reservations').select('court_id,start_hour,end_hour,status').eq('date',today).eq('status','paid_confirmed');
+  Object.values(venuesConfig).forEach(loc=>{
+    loc.courts.forEach(court=>{
+      if(court.isActive===false) return;
+      const w = court.weekly && court.weekly[dow];
+      const start = w ? w.start : court.dayStart;
+      const end = w ? w.end : court.dayEnd;
+      totalAvail += Math.max(0, end-start);
+    });
+  });
+  (allToday||[]).forEach(r=> totalBooked += (Number(r.end_hour)-Number(r.start_hour)));
+  const occupancyPct = totalAvail>0 ? Math.round(totalBooked/totalAvail*100) : 0;
+
+  const { count: pendingCount } = await sb.from('reservations').select('id',{count:'exact',head:true}).eq('status','pending_payment');
+
+  const { data: omData } = await sb.from('reservations').select('*, open_matches(*, open_match_players(*))').eq('is_open_match',true).eq('status','paid_confirmed').gte('date', today);
+  const activeOm = (omData||[]).filter(r=>r.open_matches[0]);
+  const needingOm = activeOm.filter(r=>{ const om=r.open_matches[0]; return om.open_match_players.length < om.players_needed; });
+
+  const { data: eventsToday } = await sb.from('events').select('*').eq('date', today);
+
+  const tomorrowDate = new Date(today+'T00:00:00'); tomorrowDate.setDate(tomorrowDate.getDate()+1);
+  const tomorrowStr = tomorrowDate.toISOString().slice(0,10);
+  const { data: tomorrowTournaments } = await sb.from('events').select('*').eq('date', tomorrowStr).eq('category','turnaj');
+  let tomorrowSignups = 0;
+  if(tomorrowTournaments && tomorrowTournaments.length){
+    const { count } = await sb.from('event_registrations').select('id',{count:'exact',head:true}).in('event_id', tomorrowTournaments.map(t=>t.id)).eq('status','paid_confirmed');
+    tomorrowSignups = count||0;
+  }
+
+  const { count: refundCount } = await sb.from('reservations').select('id',{count:'exact',head:true}).eq('refund_status','pending');
+  const { count: unmatchedCount } = await sb.from('unmatched_fio_transactions').select('id',{count:'exact',head:true}).eq('status','pending');
+
+  el.innerHTML = `
+    <h1 class="page-title">Ahoj ${profile.full_name.split(' ')[0]} 👋</h1>
+    <p class="page-sub">Provozní přehled ke dnešnímu dni.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:22px;">
+      <div class="card"><div class="info"><b>Obsazenost dnes</b><div style="font-size:30px;font-weight:700;color:var(--ink);margin-top:4px;">${occupancyPct} %</div></div></div>
+      <div class="card"><div class="info"><b>Čeká na platbu</b><div style="font-size:30px;font-weight:700;color:var(--ink);margin-top:4px;">${pendingCount||0}</div></div></div>
+      <div class="card"><div class="info"><b>Open Match</b><div class="meta" style="margin-top:6px;">${activeOm.length} aktivní${needingOm.length?`<br>${needingOm.length} čeká na hráče`:''}</div></div></div>
+      <div class="card"><div class="info"><b>Vrácení peněz</b><div style="font-size:30px;font-weight:700;color:${refundCount?'var(--red)':'var(--ink)'};margin-top:4px;">${refundCount||0}</div></div></div>
+      <div class="card"><div class="info"><b>Nespárované platby</b><div style="font-size:30px;font-weight:700;color:${unmatchedCount?'var(--red)':'var(--ink)'};margin-top:4px;">${unmatchedCount||0}</div></div></div>
+    </div>
+    ${eventsToday && eventsToday.length ? `<div class="section-title">Dnešní akce</div><div class="card-list">${eventsToday.map(ev=>`<div class="card"><div class="info"><b>${(ev.time_from||'').slice(0,5)}</b><div class="meta">${ev.name}</div></div></div>`).join('')}</div>` : ''}
+    ${tomorrowTournaments && tomorrowTournaments.length ? `<div class="section-title">Zítřejší turnaj</div><div class="card-list">${tomorrowTournaments.map(t=>`<div class="card"><div class="info"><b>${t.name}</b><div class="meta">${tomorrowSignups} hráčů přihlášeno</div></div></div>`).join('')}</div>` : ''}
+  `;
+}
+
 async function renderAll(){
   renderHeader();
   if(currentLocationId) await renderGrid();
   const activeTab = document.querySelector('#tabs button.active')?.dataset.view;
+  if(activeTab==='dashboard' || !activeTab) await renderDashboard();
   if(activeTab==='mine') await renderMine();
   if(activeTab==='openmatches') await renderOpen();
   if(activeTab==='calendar') await renderCalendar();
