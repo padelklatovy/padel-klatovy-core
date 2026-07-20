@@ -392,6 +392,7 @@
         <select id="memberFilterTier" onchange="paintMembersTable()">
           <option value="all">Všichni</option>
           <option value="admin">Jen Admin</option>
+          <option value="recepce">Jen Recepce</option>
           <option value="trener">Jen Trenér</option>
           <option value="clen">Jen Člen (20 %)</option>
           <option value="none">Jen Nečlen</option>
@@ -758,6 +759,17 @@ function toLocalISODate(d){
 function todayISO(){ return toLocalISODate(new Date()); }
 function activeLoc(){ return venuesConfig[currentLocationId]; }
 function isAdmin(){ return profile && (profile.role==='admin' || profile.role==='owner'); }
+function isReceptionFor(venueSlug){
+  if(!profile || profile.role!=='recepce' || !venueSlug) return false;
+  const loc = venuesConfig[venueSlug];
+  return !!loc && profile.scoped_venue_id === loc.id;
+}
+function canManageVenue(venueSlug){ return isAdmin() || isReceptionFor(venueSlug); }
+function venueNameById(id){
+  if(!id) return null;
+  const slug = Object.keys(venuesConfig).find(s=>venuesConfig[s].id===id);
+  return slug ? venuesConfig[slug].name : null;
+}
 function slotStarts(loc){
   const arr = []; const step = loc.slotStep;
   for(let h = loc.dayStart; h <= loc.dayEnd - step + 1e-9; h += step){ arr.push(Math.round(h*(1/step))/(1/step)); }
@@ -1135,11 +1147,11 @@ async function renderGrid(){
       if(r && r.start_hour === s){
         const span = Math.max(1, Math.round((r.end_hour - r.start_hour) * (1/loc.slotStep)));
         let cls='taken', tag='Obsazeno', clickable=true;
-        if(r.status==='club_blocked'){ cls='event'; tag = r.event_name||'Akce'; clickable = isAdmin(); }
+        if(r.status==='club_blocked'){ cls='event'; tag = r.event_name||'Akce'; clickable = canManageVenue(currentLocationId); }
         else if(r.is_open_match && r.status==='paid_confirmed'){ cls='openmatch'; tag = 'Open Match'; }
         else if(profile && r.member_id===profile.user_id){ cls='mine'; tag = r.status==='pending_payment' ? 'Čeká platba' : 'Moje'; }
         else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Obsazeno'; clickable = true; }
-        else { cls='taken'; tag = isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; clickable = isAdmin(); }
+        else { cls='taken'; tag = canManageVenue(currentLocationId) ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; clickable = canManageVenue(currentLocationId); }
         html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" ${clickable?`onclick="openSlot('${court.id}',${s})"`:''}><span class="tag">${tag}</span></div></div>`;
         i += span;
       } else {
@@ -1157,7 +1169,7 @@ async function openSlot(courtId, hour){
   const loc = activeLoc();
   const existing = findReservationAt(courtId, hour);
 
-  if(isAdmin()){ openAdminSlotModal(courtId, hour, existing); return; }
+  if(canManageVenue(currentLocationId)){ openAdminSlotModal(courtId, hour, existing); return; }
 
   if(existing){
     if(profile && existing.member_id===profile.user_id){ activeReservationId=existing.id; await openPaymentModalFor(existing); }
@@ -2531,7 +2543,8 @@ function paintMembersTable(){
   let members = membersCache.slice();
   if(search) members = members.filter(m=>m.full_name.toLowerCase().includes(search) || (m.admin_note||'').toLowerCase().includes(search) || (m.email||'').toLowerCase().includes(search));
   if(tierFilter === 'admin') members = members.filter(m=>m.role==='admin'||m.role==='owner');
-  else if(tierFilter !== 'all') members = members.filter(m=>m.membership_tier===tierFilter && m.role!=='admin' && m.role!=='owner');
+  else if(tierFilter === 'recepce') members = members.filter(m=>m.role==='recepce');
+  else if(tierFilter !== 'all') members = members.filter(m=>m.membership_tier===tierFilter && m.role!=='admin' && m.role!=='owner' && m.role!=='recepce');
   if(levelFilter === 'none') members = members.filter(m=>!m.level);
   else if(levelFilter !== 'all') members = members.filter(m=>m.level===levelFilter);
 
@@ -2559,7 +2572,7 @@ function paintMembersTable(){
     ${members.map(m=>`<tr>
       <td><b>${m.full_name}</b>${m.admin_note ? `<br><small style="color:#6E6E6E;font-weight:400;">${m.admin_note}</small>` : ''}</td>
       <td>${m.email || '—'}</td><td>${m.revenue} Kč</td><td>${m.count}</td><td>${m.phone||'—'}</td>
-      <td>${(m.role==='admin'||m.role==='owner') ? 'Admin' : (tierLabel[m.membership_tier] || 'Nečlen') + ' (' + m.discount_percent + ' %)'}</td>
+      <td>${(m.role==='admin'||m.role==='owner') ? 'Admin' : m.role==='recepce' ? `Recepce (${venueNameById(m.scoped_venue_id) || 'areál nevybrán'})` : (tierLabel[m.membership_tier] || 'Nečlen') + ' (' + m.discount_percent + ' %)'}</td>
       <td>${levelLabelOf(m.level)}</td><td>${m.role}</td>
       <td><button class="btn btn-sm btn-ghost" onclick="openMemberDetail('${m.user_id}')">Detail</button></td>
     </tr>`).join('')}
@@ -2601,7 +2614,13 @@ function openMemberDetail(userId){
       </span></div>
       <div class="price-row"><span>Role v appce</span><span>
         <select id="editRole" onchange="updateMemberRole('${m.user_id}', this.value)">
-          ${['member','admin','owner'].map(r=>`<option value="${r}" ${r===m.role?'selected':''}>${r}</option>`).join('')}
+          ${['member','recepce','admin','owner'].map(r=>`<option value="${r}" ${r===m.role?'selected':''}>${r}</option>`).join('')}
+        </select>
+      </span></div>
+      <div class="price-row" id="editScopedVenueRow" style="${m.role==='recepce'?'':'display:none;'}"><span>Recepce pro areál</span><span>
+        <select id="editScopedVenue" onchange="updateMemberScopedVenue('${m.user_id}', this.value)">
+          <option value="">— vyber areál —</option>
+          ${OVERVIEW_ORDER.map(slug=>`<option value="${slug}" ${venuesConfig[slug] && m.scoped_venue_id===venuesConfig[slug].id?'selected':''}>${venuesConfig[slug]?venuesConfig[slug].name:slug}</option>`).join('')}
         </select>
       </span></div>
       <div class="price-row"><span>Hráčská úroveň</span><span>
@@ -2695,7 +2714,16 @@ async function updateMemberTier(userId, tier){
 async function updateMemberRole(userId, value){
   const { error } = await sb.from('member_profiles').update({role: value}).eq('user_id', userId);
   if(error){ toast('Chyba: '+error.message); return; }
+  const row = document.getElementById('editScopedVenueRow');
+  if(row) row.style.display = value==='recepce' ? '' : 'none';
   toast('Role upravena'); await renderMembers(); renderHeader();
+}
+async function updateMemberScopedVenue(userId, slug){
+  const venueId = slug ? (venuesConfig[slug] && venuesConfig[slug].id) : null;
+  const { error } = await sb.from('member_profiles').update({scoped_venue_id: venueId}).eq('user_id', userId);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast(slug ? `Recepce nastavena pro ${venuesConfig[slug].name}` : 'Areál recepce zrušen');
+  await renderMembers();
 }
 async function updateMemberLevel(userId, value){
   const { error } = await sb.from('member_profiles').update({level: value || null}).eq('user_id', userId);
@@ -3080,6 +3108,10 @@ async function enablePushNotifications(){
   if(session) await loadProfile();
 
   if(isAdmin() && !urlVenue && !currentLocationId){ showAllVenuesGrid(); }
+  else if(profile && profile.role==='recepce' && profile.scoped_venue_id && !urlVenue && !currentLocationId){
+    const mySlug = Object.keys(venuesConfig).find(s=>venuesConfig[s].id===profile.scoped_venue_id);
+    if(mySlug) await selectProduct(mySlug);
+  }
 
   sb.auth.onAuthStateChange(async (event, s2)=>{
     session = s2;
