@@ -386,7 +386,28 @@
     <table class="admin-table" id="refundsTable"></table>
     <div class="section-title">Členové</div>
     <p class="page-sub" style="margin-top:-6px;">Skutečná tabulka <code>member_profiles</code>. Slevu edituje jen admin zde.</p>
-    <div class="field" style="max-width:320px;"><input id="memberSearch" placeholder="Začněte psát jméno..." oninput="renderMembers()"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+      <div class="field" style="max-width:320px;margin:0;"><label style="font-size:12px;">Hledat</label><input id="memberSearch" placeholder="Jméno, e-mail, poznámka..." oninput="paintMembersTable()"></div>
+      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Úroveň / role</label>
+        <select id="memberFilterTier" onchange="paintMembersTable()">
+          <option value="all">Všichni</option>
+          <option value="admin">Jen Admin</option>
+          <option value="trener">Jen Trenér</option>
+          <option value="clen">Jen Člen (20 %)</option>
+          <option value="none">Jen Nečlen</option>
+        </select>
+      </div>
+      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Aktivita</label>
+        <select id="memberFilterActivity" onchange="paintMembersTable()">
+          <option value="all">Všichni</option>
+          <option value="has_bookings">Mají alespoň 1 rezervaci</option>
+          <option value="no_bookings">Bez rezervace</option>
+          <option value="has_revenue">S tržbou &gt; 0 Kč</option>
+        </select>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('memberSearch').value='';document.getElementById('memberFilterTier').value='all';document.getElementById('memberFilterActivity').value='all';paintMembersTable()">Zrušit filtry</button>
+    </div>
+    <p id="memberFilterCount" style="font-size:12px;color:#6E6E6E;margin:8px 0 0;"></p>
     <table class="admin-table" id="membersTable" style="margin-top:12px;"></table>
 
     <div class="section-title">Předplacená členství</div>
@@ -2275,8 +2296,15 @@ async function renderMembers(){
 }
 function paintMembersTable(){
   const search = (document.getElementById('memberSearch')?.value || '').toLowerCase();
+  const tierFilter = document.getElementById('memberFilterTier')?.value || 'all';
+  const activityFilter = document.getElementById('memberFilterActivity')?.value || 'all';
   let members = membersCache.slice();
   if(search) members = members.filter(m=>m.full_name.toLowerCase().includes(search) || (m.admin_note||'').toLowerCase().includes(search) || (m.email||'').toLowerCase().includes(search));
+  if(tierFilter === 'admin') members = members.filter(m=>m.role==='admin'||m.role==='owner');
+  else if(tierFilter !== 'all') members = members.filter(m=>m.membership_tier===tierFilter && m.role!=='admin' && m.role!=='owner');
+  if(activityFilter === 'has_bookings') members = members.filter(m=>m.count > 0);
+  else if(activityFilter === 'no_bookings') members = members.filter(m=>m.count === 0);
+  else if(activityFilter === 'has_revenue') members = members.filter(m=>m.revenue > 0);
   members.sort((a,b)=> b.revenue - a.revenue);
   const table = document.getElementById('membersTable'); if(!table) return;
   const tierLabel = {none:'Nečlen', clen:'Člen', trener:'Trenér'};
@@ -2288,7 +2316,9 @@ function paintMembersTable(){
       <td>${(m.role==='admin'||m.role==='owner') ? 'Admin' : (tierLabel[m.membership_tier] || 'Nečlen') + ' (' + m.discount_percent + ' %)'}</td><td>${m.role}</td>
       <td><button class="btn btn-sm btn-ghost" onclick="openMemberDetail('${m.user_id}')">Detail</button></td>
     </tr>`).join('')}
-  ` : `<tr><td style="padding:16px;color:#948e83;">Žádní členové zatím neodpovídají hledání</td></tr>`;
+  ` : `<tr><td style="padding:16px;color:#948e83;">Nikdo neodpovídá zvolenému filtru</td></tr>`;
+  const countLabel = document.getElementById('memberFilterCount');
+  if(countLabel) countLabel.textContent = `${members.length} z ${membersCache.length} členů`;
 }
 function openMemberDetail(userId){
   const m = membersCache.find(x=>x.user_id===userId); if(!m) return;
