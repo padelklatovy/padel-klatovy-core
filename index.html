@@ -212,7 +212,7 @@
 <body>
 
 <header class="app-header">
-  <div class="brand"><div class="brand-logo-card"><img src="logo.png" alt="Padel Klatovy" class="brand-logo-img"></div></div>
+  <div class="brand" onclick="goToHome()" style="cursor:pointer;" title="Zpět na úvod"><div class="brand-logo-card"><img src="logo.png" alt="Padel Klatovy" class="brand-logo-img"></div></div>
   <div class="header-right" id="headerRight"></div>
 </header>
 
@@ -964,6 +964,11 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
   if(v==='openmatches') renderOpen();
   if(v==='calendar') renderCalendar();
 });
+function goToHome(){
+  currentLocationId = null;
+  document.querySelector('[data-view="reservations"]')?.click();
+  if(!isAdmin()) backToProducts();
+}
 
 /* ================= VENUES / COURTS z DB ================= */
 async function loadVenues(){
