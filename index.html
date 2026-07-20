@@ -1279,10 +1279,12 @@ async function confirmBooking(){
 
 function buildBasePayload(date){
   const base = Math.round(booking.duration * booking.loc.priceHour);
-  const discount = avgDiscount(booking.players);
+  const organizer = booking.players.find(p=>p.isOrganizer) || booking.players[0];
+  // Trenér (100% sleva) rezervuje celý kurt zdarma, i když by se jinak sleva
+  // poměrně rozpočítávala mezi všechny hráče podle kapacity kurtu.
+  const discount = organizer.discount === 100 ? 100 : avgDiscount(booking.players);
   const amount = Math.round(base * (1 - discount/100));
   const paidNow = booking.adminMode && booking.paidNow;
-  const organizer = booking.players.find(p=>p.isOrganizer) || booking.players[0];
   return {
     payload: {
       club_id: CLUB_ID, venue_id: booking.loc.id, court_id: booking.courtId,
@@ -2239,23 +2241,27 @@ let membersCache = [];
 async function renderMembers(){
   const { data, error } = await sb.from('member_profiles').select('*').order('full_name');
   if(error){ toast('Chyba: '+error.message); return; }
+  const { data: emailRows } = await sb.rpc('admin_list_member_emails');
+  const emailByUserId = {};
+  (emailRows||[]).forEach(r=>{ emailByUserId[r.user_id] = r.email; });
   membersCache = data.map(m=>{
     const mine = adminReservationsCache.filter(r=>r.member_id===m.user_id);
-    return { ...m, revenue: mine.filter(r=>r.status==='paid_confirmed').reduce((s,r)=>s+Number(r.amount_due||0),0), count: mine.length, reservations: mine };
+    return { ...m, email: emailByUserId[m.user_id] || null, revenue: mine.filter(r=>r.status==='paid_confirmed').reduce((s,r)=>s+Number(r.amount_due||0),0), count: mine.length, reservations: mine };
   });
   paintMembersTable();
 }
 function paintMembersTable(){
   const search = (document.getElementById('memberSearch')?.value || '').toLowerCase();
   let members = membersCache.slice();
-  if(search) members = members.filter(m=>m.full_name.toLowerCase().includes(search));
+  if(search) members = members.filter(m=>m.full_name.toLowerCase().includes(search) || (m.admin_note||'').toLowerCase().includes(search) || (m.email||'').toLowerCase().includes(search));
   members.sort((a,b)=> b.revenue - a.revenue);
   const table = document.getElementById('membersTable'); if(!table) return;
   const tierLabel = {none:'Nečlen', clen:'Člen', trener:'Trenér'};
   table.innerHTML = members.length ? `
-    <tr><th>Zákazník</th><th>Tržba</th><th>Rezervace</th><th>Telefon</th><th>Úroveň</th><th>Role</th><th></th></tr>
+    <tr><th>Zákazník</th><th>E-mail</th><th>Tržba</th><th>Rezervace</th><th>Telefon</th><th>Úroveň</th><th>Role</th><th></th></tr>
     ${members.map(m=>`<tr>
-      <td><b>${m.full_name}</b></td><td>${m.revenue} Kč</td><td>${m.count}</td><td>${m.phone||'—'}</td>
+      <td><b>${m.full_name}</b>${m.admin_note ? `<br><small style="color:#6E6E6E;font-weight:400;">${m.admin_note}</small>` : ''}</td>
+      <td>${m.email || '—'}</td><td>${m.revenue} Kč</td><td>${m.count}</td><td>${m.phone||'—'}</td>
       <td>${(m.role==='admin'||m.role==='owner') ? 'Admin' : (tierLabel[m.membership_tier] || 'Nečlen') + ' (' + m.discount_percent + ' %)'}</td><td>${m.role}</td>
       <td><button class="btn btn-sm btn-ghost" onclick="openMemberDetail('${m.user_id}')">Detail</button></td>
     </tr>`).join('')}
@@ -2284,6 +2290,7 @@ function openMemberDetail(userId){
   document.getElementById('memberDetailContent').innerHTML = `
     ${matchHtml}
     <div class="price-box" style="margin-top:0;">
+      <div class="price-row"><span>E-mail</span><span>${m.email || '—'}</span></div>
       <div class="price-row"><span>Telefon</span><span>${m.phone||'—'}</span></div>
       <div class="price-row"><span>Členská úroveň</span><span>
         <select id="editTier" onchange="updateMemberTier('${m.user_id}', this.value)">
@@ -2299,6 +2306,13 @@ function openMemberDetail(userId){
       </span></div>
     </div>
     <p style="font-size:12px;color:#6E6E6E;margin:-8px 0 14px;">Role v appce = kdo vidí Admin sekci. Členská úroveň = kdo má jakou slevu na rezervace. Dvě různé věci, nastavují se zvlášť.</p>
+    <div class="field" style="margin-bottom:14px;">
+      <label>Interní poznámka (jen pro adminy, člen ji nevidí)</label>
+      <div style="display:flex;gap:8px;">
+        <input id="editMemberNote" value="${m.admin_note || ''}" placeholder="např. recepce Brandýs" style="flex:1;">
+        <button class="btn btn-sm btn-dark" onclick="updateMemberNote('${m.user_id}')">Uložit</button>
+      </div>
+    </div>
     <div class="admin-grid" style="margin-bottom:14px;">
       <div class="stat-card"><div class="num">${m.revenue} Kč</div><div class="lbl">Tržba celkem</div></div>
       <div class="stat-card"><div class="num">${m.count}</div><div class="lbl">Počet rezervací</div></div>
@@ -2307,6 +2321,13 @@ function openMemberDetail(userId){
     <table class="admin-table"><tr><th>Datum</th><th>Kurt</th><th>Čas</th><th>Částka</th><th>Stav</th></tr>${rows || '<tr><td style="padding:12px;color:#948e83;">Žádné objednávky</td></tr>'}</table>
   `;
   showModal('memberDetailOverlay');
+}
+async function updateMemberNote(userId){
+  const note = document.getElementById('editMemberNote').value.trim();
+  const { error } = await sb.from('member_profiles').update({ admin_note: note || null }).eq('user_id', userId);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Poznámka uložena');
+  await renderMembers();
 }
 async function applyPendingMatch(userId, pendingId){
   const match = pendingMembershipsCache.find(p=>p.id===pendingId);
