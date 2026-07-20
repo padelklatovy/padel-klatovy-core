@@ -405,7 +405,20 @@
           <option value="has_revenue">S tržbou &gt; 0 Kč</option>
         </select>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('memberSearch').value='';document.getElementById('memberFilterTier').value='all';document.getElementById('memberFilterActivity').value='all';paintMembersTable()">Zrušit filtry</button>
+      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Hráčská úroveň</label>
+        <select id="memberFilterLevel" onchange="paintMembersTable()">
+          <option value="all">Všechny</option>
+          <option value="D2">D2 — Začátečník</option>
+          <option value="D1">D1 — Začátečník+</option>
+          <option value="C2">C2 — Mírně pokročilý</option>
+          <option value="C1">C1 — Mírně pokročilý+</option>
+          <option value="B2">B2 — Pokročilý</option>
+          <option value="B1">B1 — Pokročilý+</option>
+          <option value="A">A — Závodní</option>
+          <option value="none">Nevyplněno</option>
+        </select>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('memberSearch').value='';document.getElementById('memberFilterTier').value='all';document.getElementById('memberFilterActivity').value='all';document.getElementById('memberFilterLevel').value='all';paintMembersTable()">Zrušit filtry</button>
     </div>
     <p id="memberFilterCount" style="font-size:12px;color:#6E6E6E;margin:8px 0 0;"></p>
     <table class="admin-table" id="membersTable" style="margin-top:12px;"></table>
@@ -432,12 +445,24 @@
     <p class="page-sub" style="margin-top:-6px;">Pošle e-mail všem členům (nebo jen vybrané úrovni), každému zvlášť, ne přes cc/bcc.</p>
     <div class="card" style="display:block;">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
-        <div class="field" style="flex:1;min-width:200px;margin:0;"><label>Komu</label>
+        <div class="field" style="flex:1;min-width:200px;margin:0;"><label>Komu — členská úroveň</label>
           <select id="bulkEmailTier">
             <option value="all">Všem členům</option>
             <option value="clen">Jen úroveň "Člen"</option>
             <option value="trener">Jen úroveň "Trenér"</option>
             <option value="none">Jen "Nečlen"</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1;min-width:200px;margin:0;"><label>Komu — hráčská úroveň</label>
+          <select id="bulkEmailLevel">
+            <option value="all">Všechny hráčské úrovně</option>
+            <option value="D2">D2 — Začátečník</option>
+            <option value="D1">D1 — Začátečník+</option>
+            <option value="C2">C2 — Mírně pokročilý</option>
+            <option value="C1">C1 — Mírně pokročilý+</option>
+            <option value="B2">B2 — Pokročilý</option>
+            <option value="B1">B1 — Pokročilý+</option>
+            <option value="A">A — Závodní</option>
           </select>
         </div>
       </div>
@@ -489,7 +514,7 @@
     <p class="modal-sub">Jméno a telefon potřebujeme kvůli rezervaci a QR platbě.</p>
     <div class="field"><label>Jméno a příjmení</label><input id="profileName" placeholder="Jana Nováková"></div>
     <div class="field"><label>Telefon</label><input id="profilePhone" placeholder="+420 602 000 000"></div>
-    <div class="field"><label>Herní úroveň</label><select id="profileLevel"></select></div>
+    <div class="field"><label>Herní úroveň</label><select id="profileLevel"></select><div id="profileLevelDetail"></div></div>
     <button class="btn btn-primary" style="width:100%;" onclick="saveProfile()">Uložit a pokračovat</button>
   </div>
 </div>
@@ -548,6 +573,7 @@
         <div id="openMatchLevelBox" style="display:none;margin-top:10px;">
           <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Požadovaná úroveň</label>
           <select id="openMatchLevel" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;"></select>
+          <div id="openMatchLevelDetail"></div>
         </div>
       </div>
     </div>
@@ -632,13 +658,28 @@ function orderedVenueSlugs(){
 const DISCOUNT_OPTIONS = [0, 20, 50, 100];
 const PLAYER_LEVELS = [
   { code:'D2', label:'D2 — Začátečník' },
-  { code:'D1', label:'D1 — Začátečník+' },
-  { code:'C2', label:'C2 — Mírně pokročilý' },
-  { code:'C1', label:'C1 — Mírně pokročilý+' },
-  { code:'B2', label:'B2 — Pokročilý' },
-  { code:'B1', label:'B1 — Pokročilý+' },
-  { code:'A',  label:'A — Závodní' },
+  { code:'D1', label:'D1 — Mírně pokročilý začátečník' },
+  { code:'C2', label:'C2 — Pokročilý začátečník' },
+  { code:'C1', label:'C1 — Středně pokročilý' },
+  { code:'B2', label:'B2 — Pokročilý klubový hráč' },
+  { code:'B1', label:'B1 — Velmi pokročilý' },
+  { code:'A',  label:'A — Výkonnostní / závodní hráč' },
 ];
+const PLAYER_LEVEL_DETAILS = {
+  D2: ['S padelem začíná nebo odehrál jen několik prvních her.', 'Ještě nemá jistotu v základních úderech.', 'Hraje téměř výhradně od základní čáry.', 'Skla prakticky nepoužívá.', 'Nerozlišuje útok a obranu.', 'Cílem je hlavně dostat míč přes síť.'],
+  D1: ['Umí udržet kratší výměnu.', 'Začíná zvládat podání a return.', 'Občas zahraje volej, ale u sítě si ještě není jistý.', 'Se skly teprve získává zkušenosti.', 'Dělá více nevynucených chyb.'],
+  C2: ['Dokáže odehrát delší výměny.', 'Skla už používá v jednodušších situacích.', 'Začíná chodit na síť.', 'Chápe rozdíl mezi útokem a obranou.', 'Dokáže směrovat míč, ale tempo hry je stále nižší.'],
+  C1: ['Má zvládnuté základní padelové údery.', 'Pohyb po kurtu je koordinovaný.', 'Skla používá pravidelně.', 'Umí hrát od základní čáry i na síti.', 'Začíná přemýšlet takticky.', 'Chybuje hlavně při vyšším tempu.'],
+  B2: ['Dobře ovládá většinu padelových úderů.', 'Správně přechází mezi obranou a útokem.', 'Ví, kdy být trpělivý a kdy zakončit.', 'Umí využívat slabin soupeře.', 'Nevynucených chyb výrazně ubývá.', 'Je platným hráčem klubových turnajů.'],
+  B1: ['Technika je stabilní i pod tlakem.', 'Přechod obrana–útok zvládá přirozeně.', 'Dobře čte hru a předvídá další úder.', 'Dokáže měnit tempo i taktiku během zápasu.', 'Spolehlivě využívá své silné stránky.', 'Patří mezi nejlepší klubové hráče.'],
+  A:  ['Kompletní technické i taktické zvládnutí padelu.', 'Minimální počet nevynucených chyb.', 'Vysoké tempo hry.', 'Výborné čtení hry a rozhodování.', 'Pravidelně hraje soutěže a turnaje vyšší úrovně.', 'Je schopen konkurovat nejlepším hráčům v regionu i na národní úrovni.'],
+};
+function renderLevelDetailBox(boxId, code){
+  const box = document.getElementById(boxId);
+  if(!box) return;
+  const points = PLAYER_LEVEL_DETAILS[code];
+  box.innerHTML = points ? `<ul style="margin:6px 0 0;padding-left:18px;font-size:12px;color:#6E6E6E;line-height:1.5;">${points.map(p=>`<li>${p}</li>`).join('')}</ul>` : '';
+}
 
 /* ================= STATE ================= */
 let session = null;
@@ -717,9 +758,13 @@ function avgDiscount(players, maxPlayers){
   const cap = maxPlayers || (booking && booking.loc && booking.loc.maxPlayers) || players.length || 1;
   return Math.round(totalDiscount / cap);
 }
-function populateLevelSelect(selectId, selectedCode){
+function populateLevelSelect(selectId, selectedCode, detailBoxId){
   const el = document.getElementById(selectId); if(!el) return;
   el.innerHTML = PLAYER_LEVELS.map(l=>`<option value="${l.code}" ${l.code===(selectedCode||'C2')?'selected':''}>${l.label}</option>`).join('');
+  if(detailBoxId){
+    renderLevelDetailBox(detailBoxId, selectedCode||'C2');
+    el.addEventListener('change', () => renderLevelDetailBox(detailBoxId, el.value));
+  }
 }
 
 /* ================= AUTH ================= */
@@ -782,7 +827,7 @@ async function loadProfile(){
   const { data, error } = await sb.from('member_profiles').select('*').eq('user_id', session.user.id).maybeSingle();
   if(error){ console.error(error); return; }
   if(!data){
-    populateLevelSelect('profileLevel','C2');
+    populateLevelSelect('profileLevel','C2','profileLevelDetail');
     showModal('profileOverlay');
     profile = null;
   } else {
@@ -1099,7 +1144,7 @@ function openBookingModal({courtId, startHour, adminMode}){
   document.getElementById('openMatchCheck').checked = false;
   document.getElementById('openMatchRow').style.display = '';
   document.getElementById('openMatchLevelBox').style.display = 'none';
-  populateLevelSelect('openMatchLevel', profile ? profile.level : 'C2');
+  populateLevelSelect('openMatchLevel', profile ? profile.level : 'C2', 'openMatchLevelDetail');
 
   document.getElementById('repeatCheck').checked = false;
   document.getElementById('repeatBox').style.display = 'none';
@@ -2298,6 +2343,7 @@ function paintMembersTable(){
   const search = (document.getElementById('memberSearch')?.value || '').toLowerCase();
   const tierFilter = document.getElementById('memberFilterTier')?.value || 'all';
   const activityFilter = document.getElementById('memberFilterActivity')?.value || 'all';
+  const levelFilter = document.getElementById('memberFilterLevel')?.value || 'all';
   let members = membersCache.slice();
   if(search) members = members.filter(m=>m.full_name.toLowerCase().includes(search) || (m.admin_note||'').toLowerCase().includes(search) || (m.email||'').toLowerCase().includes(search));
   if(tierFilter === 'admin') members = members.filter(m=>m.role==='admin'||m.role==='owner');
@@ -2305,15 +2351,19 @@ function paintMembersTable(){
   if(activityFilter === 'has_bookings') members = members.filter(m=>m.count > 0);
   else if(activityFilter === 'no_bookings') members = members.filter(m=>m.count === 0);
   else if(activityFilter === 'has_revenue') members = members.filter(m=>m.revenue > 0);
+  if(levelFilter === 'none') members = members.filter(m=>!m.level);
+  else if(levelFilter !== 'all') members = members.filter(m=>m.level===levelFilter);
   members.sort((a,b)=> b.revenue - a.revenue);
   const table = document.getElementById('membersTable'); if(!table) return;
   const tierLabel = {none:'Nečlen', clen:'Člen', trener:'Trenér'};
+  const levelLabelOf = code => (PLAYER_LEVELS.find(l=>l.code===code) || {label: code || '—'}).label;
   table.innerHTML = members.length ? `
-    <tr><th>Zákazník</th><th>E-mail</th><th>Tržba</th><th>Rezervace</th><th>Telefon</th><th>Úroveň</th><th>Role</th><th></th></tr>
+    <tr><th>Zákazník</th><th>E-mail</th><th>Tržba</th><th>Rezervace</th><th>Telefon</th><th>Členská úroveň</th><th>Hráčská úroveň</th><th>Role</th><th></th></tr>
     ${members.map(m=>`<tr>
       <td><b>${m.full_name}</b>${m.admin_note ? `<br><small style="color:#6E6E6E;font-weight:400;">${m.admin_note}</small>` : ''}</td>
       <td>${m.email || '—'}</td><td>${m.revenue} Kč</td><td>${m.count}</td><td>${m.phone||'—'}</td>
-      <td>${(m.role==='admin'||m.role==='owner') ? 'Admin' : (tierLabel[m.membership_tier] || 'Nečlen') + ' (' + m.discount_percent + ' %)'}</td><td>${m.role}</td>
+      <td>${(m.role==='admin'||m.role==='owner') ? 'Admin' : (tierLabel[m.membership_tier] || 'Nečlen') + ' (' + m.discount_percent + ' %)'}</td>
+      <td>${levelLabelOf(m.level)}</td><td>${m.role}</td>
       <td><button class="btn btn-sm btn-ghost" onclick="openMemberDetail('${m.user_id}')">Detail</button></td>
     </tr>`).join('')}
   ` : `<tr><td style="padding:16px;color:#948e83;">Nikdo neodpovídá zvolenému filtru</td></tr>`;
@@ -2357,7 +2407,14 @@ function openMemberDetail(userId){
           ${['member','admin','owner'].map(r=>`<option value="${r}" ${r===m.role?'selected':''}>${r}</option>`).join('')}
         </select>
       </span></div>
+      <div class="price-row"><span>Hráčská úroveň</span><span>
+        <select id="editLevel" onchange="updateMemberLevel('${m.user_id}', this.value)">
+          <option value="">Nevyplněno</option>
+          ${PLAYER_LEVELS.map(l=>`<option value="${l.code}" ${m.level===l.code?'selected':''}>${l.label}</option>`).join('')}
+        </select>
+      </span></div>
     </div>
+    <div id="editLevelDetail" style="margin:-8px 0 14px;"></div>
     <p style="font-size:12px;color:#6E6E6E;margin:-8px 0 14px;">Role v appce = kdo vidí Admin sekci. Členská úroveň = kdo má jakou slevu na rezervace. Dvě různé věci, nastavují se zvlášť.</p>
     <div class="field" style="margin-bottom:14px;">
       <label>Interní poznámka (jen pro adminy, člen ji nevidí)</label>
@@ -2373,6 +2430,8 @@ function openMemberDetail(userId){
     <div class="section-title" style="margin-top:0;">Objednávky</div>
     <table class="admin-table"><tr><th>Datum</th><th>Kurt</th><th>Čas</th><th>Částka</th><th>Stav</th></tr>${rows || '<tr><td style="padding:12px;color:#948e83;">Žádné objednávky</td></tr>'}</table>
   `;
+  renderLevelDetailBox('editLevelDetail', m.level);
+  document.getElementById('editLevel').addEventListener('change', function(){ renderLevelDetailBox('editLevelDetail', this.value); });
   showModal('memberDetailOverlay');
 }
 async function updateMemberNote(userId){
@@ -2386,17 +2445,19 @@ async function sendBulkEmail(){
   const subject = document.getElementById('bulkEmailSubject').value.trim();
   const message = document.getElementById('bulkEmailMessage').value.trim();
   const tierFilter = document.getElementById('bulkEmailTier').value;
+  const levelFilter = document.getElementById('bulkEmailLevel').value;
   if(!subject || !message){ toast('Vyplň předmět i text zprávy'); return; }
 
   const tierLabel = {all:'všem členům', clen:'úrovni Člen', trener:'úrovni Trenér', none:'úrovni Nečlen'}[tierFilter];
-  if(!confirm(`Opravdu odeslat tenhle e-mail ${tierLabel}? Nejde to vzít zpátky.`)) return;
+  const levelLabel = levelFilter === 'all' ? '' : ` a hráčské úrovni ${levelFilter}`;
+  if(!confirm(`Opravdu odeslat tenhle e-mail ${tierLabel}${levelLabel}? Nejde to vzít zpátky.`)) return;
 
   const btn = document.getElementById('bulkEmailBtn');
   btn.disabled = true;
   document.getElementById('bulkEmailStatus').textContent = 'Odesílám…';
 
   const { data, error } = await sb.functions.invoke('send-bulk-email', {
-    body: { subject, message, tierFilter }
+    body: { subject, message, tierFilter, levelFilter }
   });
 
   btn.disabled = false;
@@ -2438,6 +2499,11 @@ async function updateMemberRole(userId, value){
   const { error } = await sb.from('member_profiles').update({role: value}).eq('user_id', userId);
   if(error){ toast('Chyba: '+error.message); return; }
   toast('Role upravena'); await renderMembers(); renderHeader();
+}
+async function updateMemberLevel(userId, value){
+  const { error } = await sb.from('member_profiles').update({level: value || null}).eq('user_id', userId);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Hráčská úroveň upravena'); await renderMembers();
 }
 
 function renderSeriesAdmin(){
