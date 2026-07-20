@@ -217,8 +217,8 @@
 </header>
 
 <nav class="tabs" id="tabs">
-  <button data-view="dashboard" class="active">Dashboard</button>
-  <button data-view="reservations">Rezervace</button>
+  <button data-view="dashboard" id="dashboardTab" style="display:none;">Dashboard</button>
+  <button data-view="reservations" class="active">Rezervace</button>
   <button data-view="mine">Moje rezervace</button>
   <button data-view="openmatches">Open Matches</button>
   <button data-view="calendar">Kalendář</button>
@@ -229,11 +229,11 @@
 
 <main>
 
-  <section class="view active" id="view-dashboard">
+  <section class="view" id="view-dashboard">
     <div id="dashboardContent">Načítání…</div>
   </section>
 
-  <section class="view" id="view-reservations">
+  <section class="view active" id="view-reservations">
     <h1 class="page-title">Rezervace kurtů</h1>
     <p class="page-sub" id="reservationsIntro">Vyber si hřiště / lokalitu, kde chceš rezervovat.</p>
     <button class="btn btn-ghost btn-sm" id="allVenuesToggleBtn" style="display:none;margin-bottom:14px;" onclick="showAllVenuesGrid()">📋 Zobrazit všechny areály najednou</button>
@@ -794,6 +794,7 @@ function renderHeader(){
   document.getElementById('createEventTab').style.display = isAdmin() ? '' : 'none';
   document.getElementById('allVenuesToggleBtn').style.display = isAdmin() ? '' : 'none';
   document.querySelectorAll('.legend-admin-only').forEach(el=>{ el.style.display = isAdmin() ? '' : 'none'; });
+  document.getElementById('dashboardTab').style.display = isAdmin() ? '' : 'none';
 }
 function toggleProfileMenu(e){ e.stopPropagation(); document.getElementById('profileMenu').classList.toggle('show'); }
 async function goToCreateEvent(){
