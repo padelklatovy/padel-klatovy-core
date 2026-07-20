@@ -638,6 +638,55 @@
   </div>
 </div>
 
+<div class="overlay" id="editEventOverlay">
+  <div class="modal" style="max-width:640px;">
+    <button class="modal-close" onclick="closeModal('editEventOverlay')">×</button>
+    <h2>Upravit akci</h2>
+    <p class="modal-sub">Změny se promítnou do Kalendáře i do Rezervací (pokud akce blokuje kurt).</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+      <div class="field" style="flex:2;min-width:200px;margin:0;"><label>Název akce</label><input id="editEventName"></div>
+      <div class="field" style="flex:1;min-width:160px;margin:0;"><label>Kategorie</label>
+        <select id="editEventCategory">
+          <option value="turnaj">Turnaj</option>
+          <option value="prednaska">Přednáška</option>
+          <option value="social">Social</option>
+          <option value="cviceni">Cvičení / Zdravý hráč</option>
+          <option value="jine">Jiné</option>
+        </select>
+      </div>
+      <div class="field" style="flex:1;min-width:150px;margin:0;"><label>Datum</label><input type="date" id="editEventDate"></div>
+      <div class="field" style="flex:1;min-width:100px;margin:0;"><label>Od</label><select id="editEventFrom"></select></div>
+      <div class="field" style="flex:1;min-width:100px;margin:0;"><label>Do</label><select id="editEventTo"></select></div>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;">
+      <div class="field" style="flex:2;min-width:200px;margin:0;"><label>Místo (text, jen pokud neblokuješ kurt)</label><input id="editEventLocation"></div>
+      <div class="field" style="flex:1;min-width:120px;margin:0;"><label>Kapacita</label><input type="number" id="editEventCapacity"></div>
+      <div class="field" style="flex:1;min-width:120px;margin:0;"><label>Cena (Kč)</label><input type="number" id="editEventPrice"></div>
+      <div class="field" style="flex:1;min-width:140px;margin:0;"><label>Cena je za</label>
+        <select id="editEventPriceMode">
+          <option value="osoba">osobu</option>
+          <option value="dvojice">dvojici</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" style="margin:10px 0 0;"><label>Krátký popis</label><input id="editEventDescShort"></div>
+    <div class="field" style="margin:10px 0 0;"><label>Delší popis (volitelné)</label><textarea id="editEventDescLong" rows="3" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;"></textarea></div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="editEventBlocksCourt" onchange="document.getElementById('editEventCourtFields').style.display=this.checked?'block':'none'">
+      <div><div class="cb-title">Tahle akce zabírá konkrétní kurt</div><div class="cb-sub">Změna se projeví i v Rezervacích — kurt se odblokuje/zablokuje podle nového nastavení.</div></div>
+    </div>
+    <div id="editEventCourtFields" style="display:none;margin-top:10px;">
+      <div class="field" style="min-width:200px;margin:0;"><label>Kurt</label><select id="editEventCourt"></select></div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-dark" style="flex:1;" onclick="saveEditEvent()">Uložit změny</button>
+      <button class="btn btn-ghost" style="color:var(--red-deep);border-color:var(--red-deep);" onclick="cancelEvent()">Zrušit akci</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="memberDetailOverlay">
   <div class="modal" style="max-width:560px;">
     <button class="modal-close" onclick="closeModal('memberDetailOverlay')">×</button>
@@ -1692,12 +1741,13 @@ async function renderCalendar(){
     const categoryLabel = ev.category === 'turnaj'
       ? (ev.price_mode === 'osoba' ? 'Turnaj — Americano' : 'Turnaj — dvojice')
       : (CATEGORY_LABELS[ev.category] || ev.category);
+    const adminEditHtml = isAdmin() ? `<button class="btn btn-sm btn-ghost" style="margin-top:6px;" onclick='openEditEventModal(${JSON.stringify(ev)})'>Upravit</button>` : '';
     return `<div class="card"><div class="info">
       <b>${ev.name}</b>
       <div class="meta">${categoryLabel} · ${fmtDate(ev.date)} · ${(ev.time_from||'').slice(0,5)}–${(ev.time_to||'').slice(0,5)}${ev.location?` · ${ev.location}`:''}</div>
       ${ev.description_short ? `<div class="meta">${ev.description_short}</div>` : ''}
       <div class="meta">${priceLabel}${ev.capacity?` · ${taken}/${ev.capacity} přihlášeno`:''}</div>
-    </div><div>${actionHtml}</div></div>`;
+    </div><div style="display:flex;flex-direction:column;align-items:flex-end;">${actionHtml}${adminEditHtml}</div></div>`;
   }).join('');
 }
 const CATEGORY_LABELS = { turnaj:'Turnaj', prednaska:'Přednáška', social:'Social', cviceni:'Cvičení', jine:'Akce' };
@@ -2279,6 +2329,124 @@ function updatePriceModeLabels(){
   document.getElementById('priceModeLabel').textContent = isTurnaj ? 'Typ turnaje' : 'Cena je za';
   document.getElementById('priceModeOptOsoba').textContent = isTurnaj ? 'osobu — Americano (jednotlivci)' : 'osobu';
   document.getElementById('priceModeOptDvojice').textContent = isTurnaj ? 'dvojici — klasický turnaj' : 'dvojici';
+}
+function timeStrToHour(t){ const [h,m] = t.split(':').map(Number); return h + (m||0)/60; }
+let activeEditEvent = null;
+let activeEditEventReservation = null;
+function populateEditEventSelects(){
+  const courtSel = document.getElementById('editEventCourt');
+  courtSel.innerHTML = '';
+  orderedVenueSlugs().forEach(slug=>{
+    const grp = document.createElement('optgroup'); grp.label = venuesConfig[slug].name;
+    venuesConfig[slug].courts.forEach(c=>{ const o=document.createElement('option'); o.value=c.id; o.textContent=c.name; grp.appendChild(o); });
+    courtSel.appendChild(grp);
+  });
+  const fromSel = document.getElementById('editEventFrom'); const toSel = document.getElementById('editEventTo');
+  fromSel.innerHTML=''; toSel.innerHTML='';
+  const allStarts = slotStarts({dayStart:8, dayEnd:21, minDuration:1, slotStep:0.5});
+  allStarts.concat([21]).forEach(h=>{
+    fromSel.innerHTML += `<option value="${h}">${formatHour(h)}</option>`;
+    toSel.innerHTML += `<option value="${h}">${formatHour(h)}</option>`;
+  });
+}
+async function openEditEventModal(ev){
+  if(!isAdmin()) return;
+  activeEditEvent = ev;
+  populateEditEventSelects();
+
+  document.getElementById('editEventName').value = ev.name;
+  document.getElementById('editEventCategory').value = ev.category;
+  document.getElementById('editEventDate').value = ev.date;
+  document.getElementById('editEventFrom').value = timeStrToHour(ev.time_from);
+  document.getElementById('editEventTo').value = timeStrToHour(ev.time_to);
+  document.getElementById('editEventCapacity').value = ev.capacity || '';
+  document.getElementById('editEventPrice').value = ev.price || '';
+  document.getElementById('editEventPriceMode').value = ev.price_mode || 'osoba';
+  document.getElementById('editEventDescShort').value = ev.description_short || '';
+  document.getElementById('editEventDescLong').value = ev.description_long || '';
+
+  const { data: linkedRes } = await sb.from('reservations').select('*')
+    .eq('source_event_id', ev.id).eq('status','club_blocked').maybeSingle();
+  activeEditEventReservation = linkedRes || null;
+  const blocks = !!linkedRes;
+  document.getElementById('editEventBlocksCourt').checked = blocks;
+  document.getElementById('editEventCourtFields').style.display = blocks ? 'block' : 'none';
+  document.getElementById('editEventLocation').value = blocks ? '' : (ev.location || '');
+  if(blocks) document.getElementById('editEventCourt').value = linkedRes.court_id;
+
+  showModal('editEventOverlay');
+}
+async function saveEditEvent(){
+  const ev = activeEditEvent; if(!ev) return;
+  const name = document.getElementById('editEventName').value.trim();
+  const category = document.getElementById('editEventCategory').value;
+  const date = document.getElementById('editEventDate').value;
+  const from = parseFloat(document.getElementById('editEventFrom').value);
+  const to = parseFloat(document.getElementById('editEventTo').value);
+  const blocksCourt = document.getElementById('editEventBlocksCourt').checked;
+  const courtId = blocksCourt ? document.getElementById('editEventCourt').value : null;
+  const locationText = document.getElementById('editEventLocation').value.trim();
+  const capacityRaw = document.getElementById('editEventCapacity').value;
+  const capacity = capacityRaw ? parseInt(capacityRaw) : null;
+  const priceRaw = document.getElementById('editEventPrice').value;
+  const priceVal = priceRaw ? parseFloat(priceRaw) : 0;
+  const priceMode = document.getElementById('editEventPriceMode').value;
+  const descShort = document.getElementById('editEventDescShort').value.trim();
+  const descLong = document.getElementById('editEventDescLong').value.trim();
+
+  if(!name || !date || to<=from){ toast('Vyplň název, datum a platný časový rozsah'); return; }
+  if(blocksCourt && !courtId){ toast('Vyber kurt, nebo odškrtni blokaci kurtu'); return; }
+
+  const toTime = h => String(Math.floor(h)).padStart(2,'0') + ':' + String(Math.round((h-Math.floor(h))*60)).padStart(2,'0') + ':00';
+  const court = blocksCourt ? findCourt(courtId) : null;
+
+  const { error: evErr } = await sb.from('events').update({
+    name, category, date, time_from: toTime(from), time_to: toTime(to),
+    location: blocksCourt ? `${court.locationName} · ${court.name}` : (locationText || null),
+    description_short: descShort || null, description_long: descLong || null,
+    capacity, price: priceVal, price_mode: priceMode, is_free: priceVal === 0,
+  }).eq('id', ev.id);
+  if(evErr){ toast('Chyba při ukládání: '+evErr.message); return; }
+
+  if(blocksCourt){
+    if(activeEditEventReservation){
+      const { error } = await sb.from('reservations').update({
+        court_id: courtId, venue_id: venuesConfig[court.locationSlug].id,
+        date, start_hour: from, duration_hours: to-from, end_hour: to, event_name: name
+      }).eq('id', activeEditEventReservation.id);
+      if(error){ toast('Akce uložena, ale úprava blokace kurtu selhala: '+error.message); return; }
+    } else {
+      const { error } = await sb.from('reservations').insert({
+        club_id: CLUB_ID, venue_id: venuesConfig[court.locationSlug].id, court_id: courtId,
+        date, start_hour: from, duration_hours: to-from, end_hour: to,
+        type:'club_event', status:'club_blocked', event_name:name, created_by: session.user.email,
+        source_event_id: ev.id
+      });
+      if(error){ toast('Akce uložena, ale založení blokace kurtu selhalo: '+error.message); return; }
+    }
+  } else if(activeEditEventReservation){
+    const { error } = await sb.from('reservations').update({ status: 'cancelled_by_admin' }).eq('id', activeEditEventReservation.id);
+    if(error){ toast('Akce uložena, ale odblokování kurtu selhalo: '+error.message); return; }
+  }
+
+  toast(`Akce „${name}" upravena`);
+  closeModal('editEventOverlay');
+  await renderAll();
+}
+async function cancelEvent(){
+  const ev = activeEditEvent; if(!ev) return;
+  if(!confirm(`Opravdu zrušit akci „${ev.name}"? Zmizí z Kalendáře a uvolní se případně blokovaný kurt.\n\nPozor: appka automaticky nevrací peníze ani nemaže přihlášky — to je potřeba vyřešit ručně (Admin → Přihlášky/platby).`)) return;
+
+  const { error } = await sb.from('events').update({ status: 'zruseno' }).eq('id', ev.id);
+  if(error){ toast('Chyba: '+error.message); return; }
+
+  if(activeEditEventReservation){
+    await sb.from('reservations').update({ status: 'cancelled_by_admin' }).eq('id', activeEditEventReservation.id);
+  }
+
+  toast(`Akce „${ev.name}" zrušena`);
+  closeModal('editEventOverlay');
+  await renderAll();
 }
 async function createEvent(){
   const name = document.getElementById('eventName').value.trim();
