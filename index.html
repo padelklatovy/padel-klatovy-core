@@ -601,13 +601,12 @@
   <div class="modal">
     <button class="modal-close" onclick="closeModal('paymentOverlay')">×</button>
     <h2>Platba QR kódem</h2>
-    <p class="modal-sub">Naskenuj v bankovní appce. Po připsání platby se rezervace potvrdí automaticky (obvykle do 15 minut).</p>
+    <p class="modal-sub">Naskenuj v bankovní appce a zaplať do <b>30 minut</b>, jinak se rezervace automaticky zruší. Po připsání platby se potvrdí (obvykle do 15 minut).</p>
     <div class="qr-box">
       <div class="qr-visual" id="qrVisual"></div>
       <div class="qr-meta" id="qrMeta"></div>
       <div id="paymentStatusBox"></div>
     </div>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('paymentOverlay')">Zavřít, doplatím později</button>
   </div>
 </div>
 
@@ -631,12 +630,11 @@
   <div class="modal">
     <button class="modal-close" onclick="closeModal('eventPaymentOverlay')">×</button>
     <h2>Platba za přihlášku</h2>
-    <p class="modal-sub">Naskenuj v bankovní appce. Po připsání platby se přihláška potvrdí automaticky (obvykle do 15 minut).</p>
+    <p class="modal-sub">Naskenuj v bankovní appce a zaplať do <b>30 minut</b>, jinak se přihláška automaticky zruší. Po připsání platby se potvrdí (obvykle do 15 minut).</p>
     <div class="qr-box">
       <div class="qr-visual" id="eventQrVisual"></div>
       <div class="qr-meta" id="eventQrMeta"></div>
     </div>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('eventPaymentOverlay')">Zavřít, doplatím později</button>
   </div>
 </div>
 
@@ -1181,6 +1179,7 @@ async function openSlot(courtId, hour){
   if(!profile){ toast('Nejdřív dokonči registraci'); return; }
 
   const daysAhead = Math.round((new Date(selectedDate+'T00:00:00') - new Date(todayISO()+'T00:00:00')) / 86400000);
+  if(daysAhead < 0){ toast('Nejde rezervovat termín, který už je v minulosti'); return; }
   if(daysAhead > loc.bookingWindowDays){ toast(`Tohle hřiště jde rezervovat max. ${loc.bookingWindowDays} dní dopředu`); return; }
 
   const maxDur = computeMaxDuration(loc, courtId, hour);
@@ -2205,10 +2204,10 @@ async function renderUnmatchedPayments(){
   const { data, error } = await sb.from('unmatched_fio_transactions').select('*').eq('status','pending').order('transaction_date',{ascending:false});
   if(error){ table.innerHTML = `<tr><td style="padding:16px;color:#948e83;">Chyba: ${error.message}</td></tr>`; return; }
   table.innerHTML = data && data.length ? `
-    <tr><th>Datum</th><th>Částka</th><th>VS</th><th>Účet plátce</th><th>Jméno</th><th>Důvod</th><th></th></tr>
+    <tr><th>Datum</th><th>Částka</th><th>VS</th><th>Účet plátce</th><th>Jméno</th><th>Telefon</th><th>Důvod</th><th></th></tr>
     ${data.map(t=>`<tr>
       <td>${t.transaction_date || '—'}</td><td>${t.amount} Kč</td><td>${t.variable_symbol || '—'}</td>
-      <td>${t.payer_account || '—'}</td><td>${t.payer_name || '—'}</td><td>${t.reason}</td>
+      <td>${t.payer_account || '—'}</td><td>${t.payer_name || '—'}</td><td>${t.matched_phone || '—'}</td><td>${t.reason}</td>
       <td style="display:flex;gap:6px;">
         <button class="btn btn-sm btn-green" onclick="resolveUnmatched('${t.id}')">Vyřešeno</button>
         <button class="btn btn-sm btn-ghost" onclick="ignoreUnmatched('${t.id}')">Ignorovat</button>
