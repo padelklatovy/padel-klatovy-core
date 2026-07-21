@@ -1655,9 +1655,18 @@ async function renderMine(){
       </div></div>`;
   }).join('');
 
+  const RESERVATION_STATUS_LABELS = {
+    paid_confirmed: { label: 'Zaplaceno', cls: 'paid' },
+    pending_payment: { label: 'Čeká na platbu', cls: 'pending' },
+    expired: { label: 'Vypršelo (nezaplaceno)', cls: 'blocked' },
+    cancelled_by_user: { label: 'Zrušeno', cls: 'blocked' },
+    cancelled_by_admin: { label: 'Zrušeno klubem', cls: 'blocked' },
+    club_blocked: { label: 'Blokace klubu', cls: 'blocked' },
+  };
   const singleCards = single.map(r => {
     const court = findCourt(r.court_id);
-    const statusHtml = r.status==='paid_confirmed' ? `<span class="status-pill paid">Zaplaceno</span>` : (r.status==='pending_payment' ? `<span class="status-pill pending">Čeká na platbu</span>` : `<span class="status-pill blocked">${r.status}</span>`);
+    const statusInfo = RESERVATION_STATUS_LABELS[r.status] || { label: r.status, cls: 'blocked' };
+    const statusHtml = `<span class="status-pill ${statusInfo.cls}">${statusInfo.label}</span>`;
     const playersNote = r.players && r.players.length>1 ? ` · ${r.players.length} hráči` : '';
     return `<div class="card"><div class="info">
         <b>${court.locationName} · ${court.name}</b>
