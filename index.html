@@ -1180,6 +1180,11 @@ async function openSlot(courtId, hour){
 
   const daysAhead = Math.round((new Date(selectedDate+'T00:00:00') - new Date(todayISO()+'T00:00:00')) / 86400000);
   if(daysAhead < 0){ toast('Nejde rezervovat termín, který už je v minulosti'); return; }
+  if(daysAhead === 0){
+    const now = new Date();
+    const nowHour = now.getHours() + now.getMinutes()/60;
+    if(hour < nowHour){ toast('Tenhle termín dnes už uplynul'); return; }
+  }
   if(daysAhead > loc.bookingWindowDays){ toast(`Tohle hřiště jde rezervovat max. ${loc.bookingWindowDays} dní dopředu`); return; }
 
   const maxDur = computeMaxDuration(loc, courtId, hour);
