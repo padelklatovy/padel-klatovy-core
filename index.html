@@ -1872,6 +1872,15 @@ async function openAdminSlotModal(courtId, hour, existing){
           <input type="date" id="seriesExtendUntil" min="${last}" style="flex:1;">
           <button class="btn btn-sm btn-dark" onclick="extendSeries('${existing.series_id}')">Prodloužit sérii</button>
         </div>
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label>Upravit celou sérii od ${fmtDate(selectedDate)} dál — nový čas / kurt (termíny před tímto datem zůstanou beze změny)</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <select id="seriesBulkEditCourt" style="flex:2;min-width:160px;"></select>
+          <select id="seriesBulkEditFrom" style="flex:1;min-width:90px;"></select>
+          <select id="seriesBulkEditTo" style="flex:1;min-width:90px;"></select>
+        </div>
+        <button class="btn btn-sm btn-dark" style="margin-top:8px;width:100%;" onclick="bulkEditSeries('${existing.series_id}')">Upravit celou sérii</button>
       </div>`;
       }
     }
@@ -1899,6 +1908,7 @@ async function openAdminSlotModal(courtId, hour, existing){
         ${existing.series_id ? `<button class="btn btn-ghost" style="color:var(--red-deep);border-color:var(--red-deep);" onclick="cancelSeries('${existing.series_id}');closeModal('adminSlotOverlay')">Zrušit celou sérii „${existing.series_name}"</button>` : ''}
       </div>
       <div id="editReservationBox" style="display:none;margin-top:16px;padding-top:16px;border-top:1px dashed var(--line);"></div>`;
+    if(existing.series_id){ populateSeriesBulkEditSelects(courtId, existing.start_hour, existing.end_hour); }
     showModal('adminSlotOverlay'); return;
   }
   const maxDur = computeMaxDuration(loc, courtId, hour);
@@ -2766,6 +2776,64 @@ function renderSeriesAdmin(){
       </tr>`;
     }).join('')}
   ` : `<tr><td style="padding:16px;color:#948e83;">Zatím žádné aktivní série</td></tr>`;
+}
+function populateSeriesBulkEditSelects(currentCourtId, currentStart, currentEnd){
+  const courtSel = document.getElementById('seriesBulkEditCourt');
+  if(!courtSel) return;
+  courtSel.innerHTML = '';
+  orderedVenueSlugs().forEach(slug=>{
+    const grp = document.createElement('optgroup'); grp.label = venuesConfig[slug].name;
+    venuesConfig[slug].courts.forEach(c=>{
+      const o = document.createElement('option'); o.value = c.id; o.textContent = c.name;
+      if(c.id === currentCourtId) o.selected = true;
+      grp.appendChild(o);
+    });
+    courtSel.appendChild(grp);
+  });
+  const fromSel = document.getElementById('seriesBulkEditFrom'); const toSel = document.getElementById('seriesBulkEditTo');
+  fromSel.innerHTML = ''; toSel.innerHTML = '';
+  const allStarts = slotStarts({dayStart:8, dayEnd:21, minDuration:1, slotStep:0.5});
+  allStarts.concat([21]).forEach(h=>{
+    fromSel.innerHTML += `<option value="${h}" ${h===currentStart?'selected':''}>${formatHour(h)}</option>`;
+    toSel.innerHTML += `<option value="${h}" ${h===currentEnd?'selected':''}>${formatHour(h)}</option>`;
+  });
+}
+async function bulkEditSeries(seriesId){
+  const newCourtId = document.getElementById('seriesBulkEditCourt').value;
+  const newFrom = parseFloat(document.getElementById('seriesBulkEditFrom').value);
+  const newTo = parseFloat(document.getElementById('seriesBulkEditTo').value);
+  if(newTo <= newFrom){ toast('Neplatný časový rozsah'); return; }
+
+  const court = findCourt(newCourtId);
+  const newVenueId = venuesConfig[court.locationSlug].id;
+
+  const { data: seriesRows, error: fetchErr } = await sb.from('reservations').select('*')
+    .eq('series_id', seriesId).gte('date', selectedDate)
+    .not('status', 'in', '(cancelled_by_user,cancelled_by_admin,expired)')
+    .order('date');
+  if(fetchErr){ toast('Chyba: '+fetchErr.message); return; }
+  if(!seriesRows || !seriesRows.length){ toast('Žádné budoucí termíny série k úpravě'); return; }
+
+  const dates = seriesRows.map(r=>r.date);
+  const { data: conflicting } = await sb.from('reservations').select('id,date,start_hour,end_hour,status,series_id')
+    .eq('court_id', newCourtId).in('date', dates);
+  const conflictDates = new Set((conflicting||[])
+    .filter(r => r.series_id !== seriesId && !['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status))
+    .filter(r => newFrom < r.end_hour && newTo > r.start_hour)
+    .map(r=>r.date));
+
+  const toUpdate = seriesRows.filter(r=>!conflictDates.has(r.date));
+  if(!toUpdate.length){ toast('Všechny termíny by kolidovaly s jinou rezervací — nic jsem neupravil'); return; }
+
+  const { error: updErr } = await sb.from('reservations').update({
+    court_id: newCourtId, venue_id: newVenueId, start_hour: newFrom, end_hour: newTo
+  }).in('id', toUpdate.map(r=>r.id));
+  if(updErr){ toast('Chyba: '+updErr.message); return; }
+
+  const skippedNote = conflictDates.size ? ` (${conflictDates.size} termínů přeskočeno — kolize s jinou rezervací)` : '';
+  toast(`Upraveno ${toUpdate.length} termínů série${skippedNote}`);
+  closeModal('adminSlotOverlay');
+  await renderAll();
 }
 async function extendSeries(seriesId){
   const newUntilStr = document.getElementById('seriesExtendUntil').value;
