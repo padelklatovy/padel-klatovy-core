@@ -345,6 +345,14 @@
       </div>
       <div class="field" style="margin:10px 0 0;"><label>Krátký popis</label><input id="eventDescShort" placeholder="jedna věta pro přehled"></div>
       <div class="field" style="margin:10px 0 0;"><label>Delší popis (volitelné)</label><textarea id="eventDescLong" rows="3" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;"></textarea></div>
+      <div class="field" style="margin:10px 0 0;">
+        <label>Obrázek / plakát (volitelné)</label>
+        <input type="file" id="eventImageFile" accept="image/png,image/jpeg,image/webp,image/gif" onchange="uploadEventImage(this, 'eventImageUrl', 'eventImagePreview')">
+        <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+          <img id="eventImagePreview" src="" alt="" style="display:none;width:56px;height:56px;object-fit:cover;border-radius:8px;">
+          <input id="eventImageUrl" placeholder="nebo vlož odkaz na obrázek přímo" style="flex:1;">
+        </div>
+      </div>
 
       <div class="checkbox-row">
         <input type="checkbox" id="eventBlocksCourt" onchange="document.getElementById('eventCourtFields').style.display=this.checked?'block':'none'">
@@ -619,6 +627,7 @@
 <div class="overlay" id="eventSignupOverlay">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('eventSignupOverlay')">×</button>
+    <img id="signupEventImage" src="" alt="" style="display:none;width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-bottom:14px;">
     <h2 id="signupEventTitle">Přihláška</h2>
     <p class="modal-sub" id="signupEventMeta"></p>
     <div class="price-box">
@@ -677,6 +686,14 @@
     </div>
     <div class="field" style="margin:10px 0 0;"><label>Krátký popis</label><input id="editEventDescShort"></div>
     <div class="field" style="margin:10px 0 0;"><label>Delší popis (volitelné)</label><textarea id="editEventDescLong" rows="3" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;"></textarea></div>
+    <div class="field" style="margin:10px 0 0;">
+      <label>Obrázek / plakát (volitelné)</label>
+      <input type="file" id="editEventImageFile" accept="image/png,image/jpeg,image/webp,image/gif" onchange="uploadEventImage(this, 'editEventImageUrl', 'editEventImagePreview')">
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+        <img id="editEventImagePreview" src="" alt="" style="display:none;width:56px;height:56px;object-fit:cover;border-radius:8px;">
+        <input id="editEventImageUrl" placeholder="nebo vlož odkaz na obrázek přímo" style="flex:1;">
+      </div>
+    </div>
 
     <div class="checkbox-row">
       <input type="checkbox" id="editEventBlocksCourt" onchange="document.getElementById('editEventCourtFields').style.display=this.checked?'block':'none'">
@@ -1818,12 +1835,18 @@ async function renderCalendar(){
       ? (ev.price_mode === 'osoba' ? 'Turnaj — Americano' : 'Turnaj — dvojice')
       : (CATEGORY_LABELS[ev.category] || ev.category);
     const adminEditHtml = isAdmin() ? `<button class="btn btn-sm btn-ghost" style="margin-top:6px;" onclick='openEditEventModal(${JSON.stringify(ev)})'>Upravit</button>` : '';
-    return `<div class="card"><div class="info">
-      <b>${ev.name}</b>
-      <div class="meta">${categoryLabel} · ${fmtDate(ev.date)} · ${(ev.time_from||'').slice(0,5)}–${(ev.time_to||'').slice(0,5)}${ev.location?` · ${ev.location}`:''}</div>
-      ${ev.description_short ? `<div class="meta">${ev.description_short}</div>` : ''}
-      <div class="meta">${priceLabel}${ev.capacity?` · ${taken}/${ev.capacity} přihlášeno`:''}</div>
-    </div><div style="display:flex;flex-direction:column;align-items:flex-end;">${actionHtml}${adminEditHtml}</div></div>`;
+    const imageHtml = ev.image_url ? `<img src="${ev.image_url}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0;" onerror="this.style.display='none'">` : '';
+    return `<div class="card">
+      <div style="display:flex;gap:14px;align-items:center;">
+        ${imageHtml}
+        <div class="info">
+          <b>${ev.name}</b>
+          <div class="meta">${categoryLabel} · ${fmtDate(ev.date)} · ${(ev.time_from||'').slice(0,5)}–${(ev.time_to||'').slice(0,5)}${ev.location?` · ${ev.location}`:''}</div>
+          ${ev.description_short ? `<div class="meta">${ev.description_short}</div>` : ''}
+          <div class="meta">${priceLabel}${ev.capacity?` · ${taken}/${ev.capacity} přihlášeno`:''}</div>
+        </div>
+      </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;">${actionHtml}${adminEditHtml}</div></div>`;
   }).join('');
 }
 const CATEGORY_LABELS = { turnaj:'Turnaj', prednaska:'Přednáška', social:'Social', cviceni:'Cvičení', jine:'Akce' };
@@ -1831,6 +1854,8 @@ const CATEGORY_LABELS = { turnaj:'Turnaj', prednaska:'Přednáška', social:'Soc
 function openEventSignupModal(ev){
   if(!profile){ toast('Nejdřív se přihlas'); return; }
   activeSignupEvent = ev;
+  const imgEl = document.getElementById('signupEventImage');
+  if(ev.image_url){ imgEl.src = ev.image_url; imgEl.style.display = ''; } else { imgEl.style.display = 'none'; imgEl.src = ''; }
   document.getElementById('signupEventTitle').textContent = ev.name;
   document.getElementById('signupEventMeta').textContent = `${fmtDate(ev.date)} · ${(ev.time_from||'').slice(0,5)}–${(ev.time_to||'').slice(0,5)}${ev.location?` · ${ev.location}`:''}`;
   const discount = profile.discount_percent || 0;
@@ -2450,6 +2475,9 @@ async function openEditEventModal(ev){
   document.getElementById('editEventPriceMode').value = ev.price_mode || 'osoba';
   document.getElementById('editEventDescShort').value = ev.description_short || '';
   document.getElementById('editEventDescLong').value = ev.description_long || '';
+  document.getElementById('editEventImageUrl').value = ev.image_url || '';
+  const editPreview = document.getElementById('editEventImagePreview');
+  if(ev.image_url){ editPreview.src = ev.image_url; editPreview.style.display = ''; } else { editPreview.style.display = 'none'; editPreview.src = ''; }
 
   const { data: linkedRes } = await sb.from('reservations').select('*')
     .eq('source_event_id', ev.id).eq('status','club_blocked').maybeSingle();
@@ -2479,6 +2507,7 @@ async function saveEditEvent(){
   const priceMode = document.getElementById('editEventPriceMode').value;
   const descShort = document.getElementById('editEventDescShort').value.trim();
   const descLong = document.getElementById('editEventDescLong').value.trim();
+  const imageUrl = document.getElementById('editEventImageUrl').value.trim();
 
   if(!name || !date || to<=from){ toast('Vyplň název, datum a platný časový rozsah'); return; }
   if(blocksCourt && !courtId){ toast('Vyber kurt, nebo odškrtni blokaci kurtu'); return; }
@@ -2490,6 +2519,7 @@ async function saveEditEvent(){
     name, category, date, time_from: toTime(from), time_to: toTime(to),
     location: blocksCourt ? `${court.locationName} · ${court.name}` : (locationText || null),
     description_short: descShort || null, description_long: descLong || null,
+    image_url: imageUrl || null,
     capacity, price: priceVal, price_mode: priceMode, is_free: priceVal === 0,
   }).eq('id', ev.id);
   if(evErr){ toast('Chyba při ukládání: '+evErr.message); return; }
@@ -2534,6 +2564,30 @@ async function cancelEvent(){
   closeModal('editEventOverlay');
   await renderAll();
 }
+async function uploadEventImage(fileInput, urlFieldId, previewId){
+  const file = fileInput.files[0];
+  if(!file) return;
+  if(file.size > 5*1024*1024){ toast('Obrázek je moc velký (max. 5 MB)'); fileInput.value=''; return; }
+
+  const urlField = document.getElementById(urlFieldId);
+  const preview = document.getElementById(previewId);
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
+
+  urlField.disabled = true;
+  urlField.placeholder = 'Nahrávám…';
+
+  const { error } = await sb.storage.from('event-images').upload(path, file, { cacheControl: '3600', upsert: false });
+  urlField.disabled = false;
+  urlField.placeholder = 'nebo vlož odkaz na obrázek přímo';
+
+  if(error){ toast('Nahrání obrázku selhalo: '+error.message); fileInput.value=''; return; }
+
+  const { data: pub } = sb.storage.from('event-images').getPublicUrl(path);
+  urlField.value = pub.publicUrl;
+  if(preview){ preview.src = pub.publicUrl; preview.style.display = ''; }
+  toast('Obrázek nahrán');
+}
 async function createEvent(){
   const name = document.getElementById('eventName').value.trim();
   const category = document.getElementById('eventCategory').value;
@@ -2550,6 +2604,7 @@ async function createEvent(){
   const priceMode = document.getElementById('eventPriceMode').value;
   const descShort = document.getElementById('eventDescShort').value.trim();
   const descLong = document.getElementById('eventDescLong').value.trim();
+  const imageUrl = document.getElementById('eventImageUrl').value.trim();
 
   if(!name || !date || to<=from){ toast('Vyplň název, datum a platný časový rozsah'); return; }
   if(blocksCourt && !courtId){ toast('Vyber kurt, nebo odškrtni blokaci kurtu'); return; }
@@ -2561,6 +2616,7 @@ async function createEvent(){
     name, category, date, time_from: toTime(from), time_to: toTime(to),
     location: blocksCourt ? `${court.locationName} · ${court.name}` : (locationText || null),
     description_short: descShort || null, description_long: descLong || null,
+    image_url: imageUrl || null,
     capacity, price: priceVal, price_mode: priceMode, is_free: priceVal === 0,
     status: 'otevreno', visibility: 'verejne', organizer: session.user.email
   }).select().single();
@@ -2579,6 +2635,9 @@ async function createEvent(){
   document.getElementById('eventName').value='';
   document.getElementById('eventDescShort').value='';
   document.getElementById('eventDescLong').value='';
+  document.getElementById('eventImageUrl').value='';
+  document.getElementById('eventImageFile').value='';
+  document.getElementById('eventImagePreview').style.display='none';
   document.getElementById('eventCapacity').value='';
   document.getElementById('eventPrice').value='';
   document.getElementById('eventPriceMode').value='osoba';
