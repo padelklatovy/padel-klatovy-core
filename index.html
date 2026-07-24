@@ -283,6 +283,12 @@
         <span class="sw"><span class="box" style="background:var(--green)"></span>Moje rezervace</span>
       </div>
 
+      <div id="receptionListWrap" style="display:none;margin-top:26px;">
+        <div class="section-title">Seznam rezervací — nejbližší dny</div>
+        <p class="page-sub" style="margin-top:-6px;">Dnešek a příštích 13 dní, seřazeno podle data. Klikni na řádek pro detail / úpravu.</p>
+        <table class="admin-table" id="receptionResTable"></table>
+      </div>
+
     </div>
   </section>
 
@@ -1161,6 +1167,45 @@ async function renderGrid(){
     html += `</div>`;
   });
   grid.innerHTML = html;
+  await renderReceptionList();
+}
+async function renderReceptionList(){
+  const wrap = document.getElementById('receptionListWrap');
+  if(!wrap) return;
+  if(!isReceptionFor(currentLocationId)){ wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  const table = document.getElementById('receptionResTable');
+  table.innerHTML = 'Načítání…';
+
+  const loc = activeLoc();
+  const endDate = toLocalISODate(new Date(new Date(todayISO()+'T00:00:00').getTime() + 13*86400000));
+
+  const { data, error } = await sb.from('reservations').select('*')
+    .eq('venue_id', loc.id)
+    .gte('date', todayISO()).lte('date', endDate)
+    .not('status','in','(cancelled_by_user,cancelled_by_admin,expired)')
+    .order('date').order('start_hour');
+
+  if(error){ table.innerHTML = `<tr><td style="padding:16px;color:#948e83;">Chyba: ${error.message}</td></tr>`; return; }
+  if(!data || !data.length){ table.innerHTML = `<tr><td style="padding:16px;color:#948e83;">Zatím žádné rezervace v nejbližších dnech</td></tr>`; return; }
+
+  const statusLabel = {pending_payment:'Čeká na platbu', paid_confirmed:'Zaplaceno', club_blocked:'Blokace/akce'};
+  table.innerHTML = `
+    <tr><th>Datum</th><th>Kurt</th><th>Čas</th><th>Kdo</th><th>Telefon</th><th>Stav</th><th>Částka</th></tr>
+    ${data.map(r=>{
+      const court = findCourt(r.court_id);
+      const who = r.organizer_name || r.event_name || '—';
+      return `<tr style="cursor:pointer;" onclick="openReceptionRow('${r.date}','${r.court_id}',${r.start_hour})">
+        <td>${fmtDate(r.date)}</td><td>${court.name}</td><td>${formatHour(r.start_hour)}–${formatHour(r.end_hour)}</td>
+        <td>${who}</td><td>${r.organizer_phone||'—'}</td><td>${statusLabel[r.status]||r.status}</td><td>${r.amount_due} Kč</td>
+      </tr>`;
+    }).join('')}
+  `;
+}
+async function openReceptionRow(date, courtId, hour){
+  selectedDate = date;
+  await renderGrid();
+  await openSlot(courtId, hour);
 }
 
 /* ================= KLIK DO SLOTU ================= */
