@@ -224,6 +224,7 @@
   <button data-view="calendar">Kalendář</button>
   <button id="createEventTab" onclick="goToCreateEvent()" style="margin-left:auto;display:none;">➕ Založit akci</button>
   <button id="barTab" onclick="window.open('https://padelklatovy.github.io/padel-klatovy-bar/', '_blank')" style="display:none;">🍺 Klubový bar ↗</button>
+  <button data-view="bulkemail" id="bulkEmailTab" style="display:none;">✉️ Hromadný e-mail</button>
   <button data-view="admin">Admin</button>
 </nav>
 
@@ -464,8 +465,25 @@
     <div class="field" style="max-width:320px;margin-top:8px;"><input id="pendingMembershipSearch" placeholder="Hledat podle jména nebo e-mailu..." oninput="renderPendingMemberships()"></div>
     <table class="admin-table" id="pendingMembershipsTable" style="margin-top:12px;"></table>
 
-    <div class="section-title">Hromadný e-mail</div>
-    <p class="page-sub" style="margin-top:-6px;">Pošle e-mail všem členům (nebo jen vybrané úrovni), každému zvlášť, ne přes cc/bcc.</p>
+    <div class="section-title">Opakované rezervace (série)</div>
+    <p class="page-sub" style="margin-top:-6px;">Pravidelné skupiny — zrušíš celou sérii jedním tlačítkem, ne termín po termínu.</p>
+    <table class="admin-table" id="seriesTable"></table>
+
+    <div class="section-title">Všechny rezervace</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+      <input id="allSearch" placeholder="Hledat podle jména..." style="flex:1;min-width:200px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;" oninput="renderAdminTable()">
+      <select id="allFilter" onchange="renderAdminTable()" style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;">
+        <option value="future" selected>Budoucí</option>
+        <option value="past">Minulé</option>
+        <option value="all">Vše</option>
+      </select>
+    </div>
+    <table class="admin-table" id="allTable"></table>
+  </section>
+
+  <section class="view" id="view-bulkemail">
+    <h1 class="page-title">Hromadný e-mail</h1>
+    <p class="page-sub">Pošle e-mail všem členům (nebo jen vybrané úrovni), každému zvlášť, ne přes cc/bcc.</p>
     <div class="card" style="display:block;">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
         <div class="field" style="flex:1;min-width:200px;margin:0;"><label>Komu — členská úroveň</label>
@@ -494,21 +512,6 @@
       <button class="btn btn-dark" style="margin-top:14px;" onclick="sendBulkEmail()" id="bulkEmailBtn">Odeslat</button>
       <div id="bulkEmailStatus" style="margin-top:10px;font-size:13px;color:#6E6E6E;"></div>
     </div>
-
-    <div class="section-title">Opakované rezervace (série)</div>
-    <p class="page-sub" style="margin-top:-6px;">Pravidelné skupiny — zrušíš celou sérii jedním tlačítkem, ne termín po termínu.</p>
-    <table class="admin-table" id="seriesTable"></table>
-
-    <div class="section-title">Všechny rezervace</div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
-      <input id="allSearch" placeholder="Hledat podle jména..." style="flex:1;min-width:200px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;" oninput="renderAdminTable()">
-      <select id="allFilter" onchange="renderAdminTable()" style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;">
-        <option value="future" selected>Budoucí</option>
-        <option value="past">Minulé</option>
-        <option value="all">Vše</option>
-      </select>
-    </div>
-    <table class="admin-table" id="allTable"></table>
   </section>
 
 </main>
@@ -707,6 +710,15 @@
       <button class="btn btn-dark" style="flex:1;" onclick="saveEditEvent()">Uložit změny</button>
       <button class="btn btn-ghost" style="color:var(--red-deep);border-color:var(--red-deep);" onclick="cancelEvent()">Zrušit akci</button>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="eventRegistrantsOverlay">
+  <div class="modal" style="max-width:560px;">
+    <button class="modal-close" onclick="closeModal('eventRegistrantsOverlay')">×</button>
+    <h2 id="registrantsEventName">Přihlášení</h2>
+    <p class="modal-sub">Kdo se přihlásil a stav platby.</p>
+    <div id="eventRegistrantsContent"></div>
   </div>
 </div>
 
@@ -966,6 +978,7 @@ function renderHeader(){
       </div>`;
   }
   document.querySelector('[data-view="admin"]').style.display = isAdmin() ? '' : 'none';
+  document.getElementById('bulkEmailTab').style.display = isAdmin() ? '' : 'none';
   document.getElementById('barTab').style.display = isAdmin() ? '' : 'none';
   document.getElementById('createEventTab').style.display = isAdmin() ? '' : 'none';
   document.getElementById('allVenuesToggleBtn').style.display = isAdmin() ? '' : 'none';
@@ -983,26 +996,40 @@ async function goToCreateEvent(){
 }
 function closeProfileMenu(){ const m=document.getElementById('profileMenu'); if(m) m.classList.remove('show'); }
 document.addEventListener('click', closeProfileMenu);
+function switchView(view){
+  const btn = document.querySelector('#tabs button[data-view="'+view+'"]');
+  if(!btn) return;
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  if(view==='dashboard') renderDashboard();
+  if(view==='reservations' && isAdmin() && !currentLocationId) showAllVenuesGrid();
+  if(view==='admin') renderAdmin();
+  if(view==='mine') renderMine();
+  if(view==='openmatches') renderOpen();
+  if(view==='calendar') renderCalendar();
+  const hashMap = {calendar:'kalendar', reservations:'rezervace', mine:'moje-rezervace', openmatches:'open-matches', admin:'admin', bulkemail:'hromadny-email'};
+  const h = hashMap[view];
+  if(h && location.hash.replace('#','') !== h){ history.replaceState(null,'','#'+h); }
+}
 document.getElementById('tabs').addEventListener('click', (e)=>{
   if(e.target.tagName !== 'BUTTON') return;
   if(!e.target.dataset.view) return;
-  document.querySelectorAll('#tabs button').forEach(b=>b.classList.remove('active'));
-  e.target.classList.add('active');
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.getElementById('view-'+e.target.dataset.view).classList.add('active');
-  const v = e.target.dataset.view;
-  if(v==='dashboard') renderDashboard();
-  if(v==='reservations' && isAdmin() && !currentLocationId) showAllVenuesGrid();
-  if(v==='admin') renderAdmin();
-  if(v==='mine') renderMine();
-  if(v==='openmatches') renderOpen();
-  if(v==='calendar') renderCalendar();
+  switchView(e.target.dataset.view);
 });
 function goToHome(){
   currentLocationId = null;
-  document.querySelector('[data-view="reservations"]')?.click();
+  switchView('reservations');
   if(!isAdmin()) backToProducts();
 }
+function applyHashRoute(){
+  const hashToView = {kalendar:'calendar', rezervace:'reservations', 'moje-rezervace':'mine', 'open-matches':'openmatches', admin:'admin', 'hromadny-email':'bulkemail'};
+  const view = hashToView[location.hash.replace('#','')];
+  if(view && document.querySelector('#tabs button[data-view="'+view+'"]')) switchView(view);
+}
+applyHashRoute();
+window.addEventListener('hashchange', applyHashRoute);
 
 /* ================= VENUES / COURTS z DB ================= */
 async function loadVenues(){
@@ -1834,7 +1861,7 @@ async function renderCalendar(){
     const categoryLabel = ev.category === 'turnaj'
       ? (ev.price_mode === 'osoba' ? 'Turnaj — Americano' : 'Turnaj — dvojice')
       : (CATEGORY_LABELS[ev.category] || ev.category);
-    const adminEditHtml = isAdmin() ? `<button class="btn btn-sm btn-ghost" style="margin-top:6px;" onclick='openEditEventModal(${JSON.stringify(ev)})'>Upravit</button>` : '';
+    const adminEditHtml = isAdmin() ? `<button class="btn btn-sm btn-ghost" style="margin-top:6px;" onclick='openEventRegistrantsModal(${JSON.stringify(ev)})'>Přihlášení (${taken})</button><button class="btn btn-sm btn-ghost" style="margin-top:6px;" onclick='openEditEventModal(${JSON.stringify(ev)})'>Upravit</button>` : '';
     const imageHtml = ev.image_url ? `<img src="${ev.image_url}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0;" onerror="this.style.display='none'">` : '';
     return `<div class="card">
       <div style="display:flex;gap:14px;align-items:center;">
@@ -1850,6 +1877,27 @@ async function renderCalendar(){
   }).join('');
 }
 const CATEGORY_LABELS = { turnaj:'Turnaj', prednaska:'Přednáška', social:'Social', cviceni:'Cvičení', jine:'Akce' };
+async function openEventRegistrantsModal(ev){
+  document.getElementById('registrantsEventName').textContent = 'Přihlášení — ' + ev.name;
+  const box = document.getElementById('eventRegistrantsContent');
+  box.innerHTML = 'Načítání…';
+  showModal('eventRegistrantsOverlay');
+  const { data: regs, error } = await sb.from('event_registrations').select('*')
+    .eq('event_id', ev.id).in('status', ['pending_payment','paid_confirmed']).order('created_at');
+  if(error){ box.innerHTML = emptyState('Chyba', error.message); return; }
+  if(!regs || !regs.length){ box.innerHTML = emptyState('Zatím nikdo', 'Ještě se nikdo nepřihlásil.'); return; }
+  const memberIds = [...new Set(regs.map(r=>r.member_id))];
+  const { data: profiles } = await sb.from('member_profiles').select('user_id, full_name, phone').in('user_id', memberIds);
+  const profileById = {};
+  (profiles||[]).forEach(p=>{ profileById[p.user_id] = p; });
+  box.innerHTML = `<table class="admin-table"><thead><tr><th>Jméno</th><th>Telefon</th><th>Spoluhráč</th><th>Cena</th><th>Stav</th></tr></thead><tbody>
+    ${regs.map(r=>{
+      const p = profileById[r.member_id];
+      const statusHtml = r.status==='paid_confirmed' ? '<span class="status-pill paid">Zaplaceno</span>' : '<span class="status-pill pending">Čeká na platbu</span>';
+      return `<tr><td>${p?.full_name || '—'}</td><td>${p?.phone || '—'}</td><td>${r.partner_name || '—'}</td><td>${r.amount_due} Kč</td><td>${statusHtml}</td></tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
 
 function openEventSignupModal(ev){
   if(!profile){ toast('Nejdřív se přihlas'); return; }
@@ -1891,6 +1939,10 @@ async function submitEventSignup(){
 
   closeModal('eventSignupOverlay');
   if(amount===0){
+    await sb.from('payments').insert({
+      club_id: CLUB_ID, event_registration_id: reg.id, amount: 0, variable_symbol: genVS(), status:'created'
+    });
+    await sb.from('payments').update({status:'manually_confirmed', paid_at:new Date().toISOString(), confirmed_by:'auto-free-event'}).eq('event_registration_id', reg.id);
     toast('Přihlášeno — akce je zdarma');
     await renderCalendar();
   } else {
