@@ -983,26 +983,40 @@ async function goToCreateEvent(){
 }
 function closeProfileMenu(){ const m=document.getElementById('profileMenu'); if(m) m.classList.remove('show'); }
 document.addEventListener('click', closeProfileMenu);
+function switchView(view){
+  const btn = document.querySelector('#tabs button[data-view="'+view+'"]');
+  if(!btn) return;
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  if(view==='dashboard') renderDashboard();
+  if(view==='reservations' && isAdmin() && !currentLocationId) showAllVenuesGrid();
+  if(view==='admin') renderAdmin();
+  if(view==='mine') renderMine();
+  if(view==='openmatches') renderOpen();
+  if(view==='calendar') renderCalendar();
+  const hashMap = {calendar:'kalendar', reservations:'rezervace', mine:'moje-rezervace', openmatches:'open-matches', admin:'admin'};
+  const h = hashMap[view];
+  if(h && location.hash.replace('#','') !== h){ history.replaceState(null,'','#'+h); }
+}
 document.getElementById('tabs').addEventListener('click', (e)=>{
   if(e.target.tagName !== 'BUTTON') return;
   if(!e.target.dataset.view) return;
-  document.querySelectorAll('#tabs button').forEach(b=>b.classList.remove('active'));
-  e.target.classList.add('active');
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.getElementById('view-'+e.target.dataset.view).classList.add('active');
-  const v = e.target.dataset.view;
-  if(v==='dashboard') renderDashboard();
-  if(v==='reservations' && isAdmin() && !currentLocationId) showAllVenuesGrid();
-  if(v==='admin') renderAdmin();
-  if(v==='mine') renderMine();
-  if(v==='openmatches') renderOpen();
-  if(v==='calendar') renderCalendar();
+  switchView(e.target.dataset.view);
 });
 function goToHome(){
   currentLocationId = null;
-  document.querySelector('[data-view="reservations"]')?.click();
+  switchView('reservations');
   if(!isAdmin()) backToProducts();
 }
+function applyHashRoute(){
+  const hashToView = {kalendar:'calendar', rezervace:'reservations', 'moje-rezervace':'mine', 'open-matches':'openmatches', admin:'admin'};
+  const view = hashToView[location.hash.replace('#','')];
+  if(view && document.querySelector('#tabs button[data-view="'+view+'"]')) switchView(view);
+}
+applyHashRoute();
+window.addEventListener('hashchange', applyHashRoute);
 
 /* ================= VENUES / COURTS z DB ================= */
 async function loadVenues(){
