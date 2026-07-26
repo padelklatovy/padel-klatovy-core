@@ -2350,10 +2350,10 @@ async function renderUnmatchedPayments(){
   const { data, error } = await sb.from('unmatched_fio_transactions').select('*').eq('status','pending').order('transaction_date',{ascending:false});
   if(error){ table.innerHTML = `<tr><td style="padding:16px;color:#948e83;">Chyba: ${error.message}</td></tr>`; return; }
   table.innerHTML = data && data.length ? `
-    <tr><th>Datum</th><th>Částka</th><th>VS</th><th>Účet plátce</th><th>Jméno</th><th>Telefon</th><th>Důvod</th><th></th></tr>
+    <tr><th>Datum</th><th>Částka</th><th>VS</th><th>Účet plátce</th><th>Jméno</th><th>Telefon</th><th>Rezervace</th><th>Důvod</th><th></th></tr>
     ${data.map(t=>`<tr>
       <td>${t.transaction_date || '—'}</td><td>${t.amount} Kč</td><td>${t.variable_symbol || '—'}</td>
-      <td>${t.payer_account || '—'}</td><td>${t.payer_name || '—'}</td><td>${t.matched_phone || '—'}</td><td>${t.reason}</td>
+      <td>${t.payer_account || '—'}</td><td>${t.payer_name || '—'}</td><td>${t.matched_phone || '—'}</td><td>${t.matched_reservation_info || '—'}</td><td>${t.reason}</td>
       <td style="display:flex;gap:6px;">
         <button class="btn btn-sm btn-green" onclick="resolveUnmatched('${t.id}')">Vyřešeno</button>
         <button class="btn btn-sm btn-ghost" onclick="ignoreUnmatched('${t.id}')">Ignorovat</button>
