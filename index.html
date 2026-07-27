@@ -915,15 +915,21 @@ async function sendMagicLink(){
 async function verifyLoginCode(){
   const email = document.getElementById('loginEmail').value.trim();
   const code = document.getElementById('loginCode').value.trim();
-  if(!email || !code){ toast('Vyplň e-mail i kód'); return; }
+  if(!email || !code){ document.getElementById('loginStatus').textContent = 'Vyplň e-mail i kód.'; toast('Vyplň e-mail i kód'); return; }
   document.getElementById('loginStatus').textContent = 'Ověřuji kód...';
-  const { error } = await sb.auth.verifyOtp({ email, token: code, type: 'email' });
+  const { data, error } = await sb.auth.verifyOtp({ email, token: code, type: 'email' });
   if(error){
     document.getElementById('loginStatus').textContent = 'Kód nesedí nebo vypršel — zkus to znovu, nebo si nech poslat nový.';
     return;
   }
   document.getElementById('loginStatus').textContent = 'Přihlášeno!';
+  // Nespoléhat jen na onAuthStateChange listener (na mobilech nemusí doběhnout včas) —
+  // rovnou natáhneme session/profil a překreslíme appku sami.
+  session = data.session;
   closeModal('loginOverlay');
+  if(session) await loadProfile();
+  renderHeader();
+  await renderAll();
 }
 async function logout(){ await sb.auth.signOut(); session=null; profile=null; renderHeader(); renderAll(); }
 
