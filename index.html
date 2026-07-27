@@ -99,7 +99,8 @@
   .court-grid{width:100%;}
   .grid-row{display:grid;column-gap:2px;margin-bottom:2px;}
   .grid-row:first-child{background:#fff;border-radius:8px 8px 0 0;margin-bottom:4px;border-bottom:1px solid var(--line);}
-  .hcell{color:var(--ink);font-family:var(--font-head);font-size:8px;text-align:center;padding:9px 0;font-weight:600;letter-spacing:0.2px;background:transparent;min-width:34px;}
+  .hcell{color:var(--ink);font-family:var(--font-head);font-size:8px;text-align:left;padding:9px 0 9px 3px;font-weight:600;letter-spacing:0.2px;background:transparent;min-width:34px;border-left:1px solid transparent;}
+  .hcell:not(.half){border-left:1px solid #C9C9C9;}
   .hcell.half{color:#C4C4C4;}
   .court-label{padding:14px 10px 14px 14px;font-family:var(--font-head);font-weight:600;font-size:14px;border-radius:8px 0 0 8px;display:flex;flex-direction:column;justify-content:center;background:#fff;position:sticky;left:0;z-index:2;}
   .court-label small{font-weight:400;font-size:10px;color:#6E6E6E;text-transform:uppercase;letter-spacing:0.4px;}
@@ -2746,12 +2747,11 @@ function paintMembersTable(){
   const tierLabel = {none:'Nečlen', clen:'Člen', trener:'Trenér'};
   const levelLabelOf = code => (PLAYER_LEVELS.find(l=>l.code===code) || {label: code || '—'}).label;
   const revenueHeader = venueId ? `Tržba (${venuesConfig[venueFilter].name})` : 'Tržba';
-  const countHeader = venueId ? `Rezervace (${venuesConfig[venueFilter].name})` : 'Rezervace';
   table.innerHTML = members.length ? `
-    <tr><th>Zákazník</th><th>E-mail</th><th>${revenueHeader}</th><th>${countHeader}</th><th>Telefon</th><th>Členská úroveň</th><th>Hráčská úroveň</th><th>Role</th><th></th></tr>
+    <tr><th style="max-width:120px;">Zákazník</th><th>E-mail</th><th>${revenueHeader}</th><th>Telefon</th><th>Členská úroveň</th><th>Hráčská úroveň</th><th>Role</th><th></th></tr>
     ${members.map(m=>`<tr>
-      <td><b>${m.full_name}</b>${m.admin_note ? `<br><small style="color:#6E6E6E;font-weight:400;">${m.admin_note}</small>` : ''}</td>
-      <td>${m.email || '—'}</td><td>${m.revenue} Kč</td><td>${m.count}</td><td>${m.phone||'—'}</td>
+      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><b title="${m.full_name}">${m.full_name}</b>${m.admin_note ? `<br><small style="color:#6E6E6E;font-weight:400;" title="${m.admin_note}">${m.admin_note}</small>` : ''}</td>
+      <td>${m.email || '—'}</td><td>${m.revenue}</td><td>${m.phone||'—'}</td>
       <td>${(m.role==='admin'||m.role==='owner') ? 'Admin' : m.role==='recepce' ? `Recepce (${venueNameById(m.scoped_venue_id) || 'areál nevybrán'})` : (tierLabel[m.membership_tier] || 'Nečlen') + ' (' + m.discount_percent + ' %)'}</td>
       <td>${levelLabelOf(m.level)}</td><td>${m.role}</td>
       <td><button class="btn btn-sm btn-ghost" onclick="openMemberDetail('${m.user_id}')">Detail</button></td>
