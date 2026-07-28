@@ -334,7 +334,16 @@
     <h1 class="page-title">Admin</h1>
     <p class="page-sub">Přehled rezervací napříč hřišti, nezaplacené platby, ruční správa.</p>
 
-    <div class="section-title" style="margin-top:0;">Založit akci do Kalendáře</div>
+    <div class="section-title" style="margin-top:0;">Týdenní přehled kurtů — Padel Klatovy</div>
+    <p class="page-sub" style="margin-top:-6px;">Pondělí–neděle, zmenšený náhled. Zatím jen tento areál (na zkoušku).</p>
+    <div class="date-bar">
+      <div class="date-nav"><button class="icon-btn" id="adminWeekPrev">‹</button><button class="icon-btn" id="adminWeekNext">›</button></div>
+      <div class="date-label" id="adminWeekLabel"></div>
+      <button class="btn btn-ghost btn-sm" id="adminWeekTodayBtn">Tento týden</button>
+    </div>
+    <div id="adminWeekGridContent">Načítání…</div>
+
+    <div class="section-title">Založit akci do Kalendáře</div>
     <p class="page-sub" style="margin-top:-6px;">Turnaj, přednáška, social, cvičení Zdravý hráč — cokoliv. Zobrazí se v appce Kalendář. Kurt zablokuj jen když akce fyzicky zabírá konkrétní kurt.</p>
     <div class="card" style="display:block;">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
@@ -1292,6 +1301,12 @@ function buildMiniDayGridHtml(loc, dateStr, dayReservations){
   });
   return html;
 }
+function goToKlatovyDay(dateStr){
+  currentLocationId = 'padel-klatovy';
+  selectedDate = dateStr;
+  switchView('reservations');
+  selectProduct('padel-klatovy');
+}
 async function renderWeekGrid(){
   const wrap = document.getElementById('weekGridContent');
   wrap.innerHTML = 'Načítání…';
@@ -1317,6 +1332,40 @@ async function renderWeekGrid(){
   }
   wrap.innerHTML = html;
 }
+
+/* ===== Týdenní přehled nahoře v Adminu (samostatný, nezávislý na Rezervacích) ===== */
+let adminWeekAnchorDate = todayISO();
+async function renderAdminWeekGrid(){
+  const wrap = document.getElementById('adminWeekGridContent');
+  if(!wrap || !isAdmin()) return;
+  wrap.innerHTML = 'Načítání…';
+  const loc = venuesConfig['padel-klatovy'];
+  if(!loc){ wrap.innerHTML = 'Areál Padel Klatovy nenalezen.'; return; }
+  const weekStart = getWeekStart(adminWeekAnchorDate);
+  const weekEnd = toLocalISODate(new Date(new Date(weekStart+'T00:00:00').getTime() + 6*86400000));
+  document.getElementById('adminWeekLabel').textContent = `${fmtDate(weekStart)} – ${fmtDate(weekEnd)}`;
+  const { data, error } = await sb.from('reservations').select('*').eq('venue_id', loc.id).gte('date', weekStart).lte('date', weekEnd);
+  if(error){ wrap.innerHTML = `Chyba načítání: ${error.message}`; return; }
+  const dayNamesLong = ['Neděle','Pondělí','Úterý','Středa','Čtvrtek','Pátek','Sobota'];
+  const today = todayISO();
+  let html = '';
+  for(let i=0;i<7;i++){
+    const d = new Date(weekStart+'T00:00:00'); d.setDate(d.getDate()+i);
+    const dateStr = toLocalISODate(d);
+    const dayRes = data.filter(r=>r.date===dateStr);
+    html += `<div class="week-day-block">
+      <div class="week-day-title" onclick="goToKlatovyDay('${dateStr}')">
+        ${dayNamesLong[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.
+        ${dateStr===today ? '<span class="wd-today">DNES</span>' : ''}
+      </div>
+      <div class="week-mini grid-scroll"><div class="court-grid">${buildMiniDayGridHtml(loc, dateStr, dayRes)}</div></div>
+    </div>`;
+  }
+  wrap.innerHTML = html;
+}
+document.getElementById('adminWeekPrev').onclick = ()=>{ const d=new Date(adminWeekAnchorDate+'T00:00:00'); d.setDate(d.getDate()-7); adminWeekAnchorDate=toLocalISODate(d); renderAdminWeekGrid(); };
+document.getElementById('adminWeekNext').onclick = ()=>{ const d=new Date(adminWeekAnchorDate+'T00:00:00'); d.setDate(d.getDate()+7); adminWeekAnchorDate=toLocalISODate(d); renderAdminWeekGrid(); };
+document.getElementById('adminWeekTodayBtn').onclick = ()=>{ adminWeekAnchorDate=todayISO(); renderAdminWeekGrid(); };
 async function renderReceptionList(){
   const wrap = document.getElementById('receptionListWrap');
   if(!wrap) return;
@@ -2513,6 +2562,7 @@ async function renderAdmin(){
     return;
   }
   await renderAllVenuesOverview();
+  await renderAdminWeekGrid();
   renderCourtsManageTable();
   const { data, error } = await sb.from('reservations').select('*').order('date',{ascending:false});
   if(error){ toast('Chyba: '+error.message); return; }
