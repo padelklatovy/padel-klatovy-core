@@ -139,9 +139,9 @@
   .week-mini .cell{min-width:15px;}
   .week-mini .court-label{padding:3px 6px;font-size:9px;min-width:0;}
   .week-mini .court-label small{display:none;}
-  .week-mini .slot{height:16px;margin:1px;border-radius:3px;}
-  .week-mini .slot .tag{display:none;}
+  .week-mini .slot{height:26px;margin:1px;border-radius:3px;}
   .week-mini .slot.spanning{margin:1px;height:calc(100% - 2px);}
+  .week-mini .slot .tag{display:block;font-size:6.5px;font-weight:600;line-height:1.15;padding:0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:none;letter-spacing:0;}
 
 
   .legend{display:flex;gap:18px;margin-top:14px;flex-wrap:wrap;font-size:13px;color:#5c574e;}
@@ -1286,11 +1286,11 @@ function buildMiniDayGridHtml(loc, dateStr, dayReservations){
       const r = dayReservations.find(r => r.court_id===court.id && s >= r.start_hour && s < r.end_hour && !['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status));
       if(r && r.start_hour === s){
         const span = Math.max(1, Math.round((r.end_hour - r.start_hour) * (1/loc.slotStep)));
-        let cls = 'taken';
-        if(r.status==='club_blocked') cls='event';
-        else if(r.is_open_match && r.status==='paid_confirmed') cls='openmatch';
-        else if(Number(r.amount_due)===0 && r.status==='paid_confirmed') cls='freebie';
-        html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning"></div></div>`;
+        let cls = 'taken', tag = r.organizer_name || 'Obsazeno';
+        if(r.status==='club_blocked'){ cls='event'; tag = r.event_name || 'Akce'; }
+        else if(r.is_open_match && r.status==='paid_confirmed'){ cls='openmatch'; tag = r.organizer_name || 'Open Match'; }
+        else if(Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Zdarma'; }
+        html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" title="${tag}"><span class="tag">${tag}</span></div></div>`;
         i += span;
       } else {
         html += `<div class="cell"><div class="slot free"></div></div>`;
