@@ -237,6 +237,7 @@
   <button data-view="mine">Moje rezervace</button>
   <button data-view="openmatches">Open Matches</button>
   <button data-view="calendar">Kalendář</button>
+  <button data-view="weekview" id="weekTab" style="display:none;">Týden</button>
   <button id="createEventTab" onclick="goToCreateEvent()" style="margin-left:auto;display:none;">➕ Založit akci</button>
   <button id="barTab" onclick="window.open('https://padelklatovy.github.io/padel-klatovy-bar/', '_blank')" style="display:none;">🍺 Klubový bar ↗</button>
   <button data-view="bulkemail" id="bulkEmailTab" style="display:none;">✉️ Hromadný e-mail</button>
@@ -330,20 +331,22 @@
     <div class="card-list" id="calendarList">Načítání…</div>
   </section>
 
-  <section class="view" id="view-admin">
-    <h1 class="page-title">Admin</h1>
-    <p class="page-sub">Přehled rezervací napříč hřišti, nezaplacené platby, ruční správa.</p>
-
-    <div class="section-title" style="margin-top:0;">Týdenní přehled kurtů — Padel Klatovy</div>
-    <p class="page-sub" style="margin-top:-6px;">Pondělí–neděle, zmenšený náhled. Zatím jen tento areál (na zkoušku).</p>
+  <section class="view" id="view-weekview">
+    <h1 class="page-title">Týdenní přehled — Padel Klatovy</h1>
+    <p class="page-sub">Pondělí–neděle, zmenšený náhled. Zatím jen tento areál (na zkoušku).</p>
     <div class="date-bar">
       <div class="date-nav"><button class="icon-btn" id="adminWeekPrev">‹</button><button class="icon-btn" id="adminWeekNext">›</button></div>
       <div class="date-label" id="adminWeekLabel"></div>
       <button class="btn btn-ghost btn-sm" id="adminWeekTodayBtn">Tento týden</button>
     </div>
     <div id="adminWeekGridContent">Načítání…</div>
+  </section>
 
-    <div class="section-title">Založit akci do Kalendáře</div>
+  <section class="view" id="view-admin">
+    <h1 class="page-title">Admin</h1>
+    <p class="page-sub">Přehled rezervací napříč hřišti, nezaplacené platby, ruční správa.</p>
+
+    <div class="section-title" style="margin-top:0;">Založit akci do Kalendáře</div>
     <p class="page-sub" style="margin-top:-6px;">Turnaj, přednáška, social, cvičení Zdravý hráč — cokoliv. Zobrazí se v appce Kalendář. Kurt zablokuj jen když akce fyzicky zabírá konkrétní kurt.</p>
     <div class="card" style="display:block;">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
@@ -1018,6 +1021,7 @@ function renderHeader(){
   document.getElementById('allVenuesToggleBtn').style.display = isAdmin() ? '' : 'none';
   document.querySelectorAll('.legend-admin-only').forEach(el=>{ el.style.display = isAdmin() ? '' : 'none'; });
   document.getElementById('dashboardTab').style.display = isAdmin() ? '' : 'none';
+  document.getElementById('weekTab').style.display = isAdmin() ? '' : 'none';
 }
 function toggleProfileMenu(e){ e.stopPropagation(); document.getElementById('profileMenu').classList.toggle('show'); }
 async function goToCreateEvent(){
@@ -1043,7 +1047,8 @@ function switchView(view){
   if(view==='mine') renderMine();
   if(view==='openmatches') renderOpen();
   if(view==='calendar') renderCalendar();
-  const hashMap = {calendar:'kalendar', reservations:'rezervace', mine:'moje-rezervace', openmatches:'open-matches', admin:'admin', bulkemail:'hromadny-email'};
+  if(view==='weekview') renderAdminWeekGrid();
+  const hashMap = {calendar:'kalendar', reservations:'rezervace', mine:'moje-rezervace', openmatches:'open-matches', admin:'admin', bulkemail:'hromadny-email', weekview:'tyden'};
   const h = hashMap[view];
   if(h && location.hash.replace('#','') !== h){ history.replaceState(null,'','#'+h); }
 }
@@ -1058,7 +1063,7 @@ function goToHome(){
   if(!isAdmin()) backToProducts();
 }
 function applyHashRoute(){
-  const hashToView = {kalendar:'calendar', rezervace:'reservations', 'moje-rezervace':'mine', 'open-matches':'openmatches', admin:'admin', 'hromadny-email':'bulkemail'};
+  const hashToView = {kalendar:'calendar', rezervace:'reservations', 'moje-rezervace':'mine', 'open-matches':'openmatches', admin:'admin', 'hromadny-email':'bulkemail', tyden:'weekview'};
   const view = hashToView[location.hash.replace('#','')];
   if(view && document.querySelector('#tabs button[data-view="'+view+'"]')) switchView(view);
 }
@@ -1331,9 +1336,14 @@ async function renderWeekGrid(){
     </div>`;
   }
   wrap.innerHTML = html;
+  scrollWeekMiniToEnd(wrap);
 }
-
-/* ===== Týdenní přehled nahoře v Adminu (samostatný, nezávislý na Rezervacích) ===== */
+function scrollWeekMiniToEnd(wrap){
+  // Výchozí zobrazení mřížky je zarovnané na konec dne (kde bývá nejvíc rezervací) — jde odrolovat zpět na ráno.
+  requestAnimationFrame(()=>{
+    wrap.querySelectorAll('.week-mini').forEach(el => { el.scrollLeft = el.scrollWidth; });
+  });
+}
 let adminWeekAnchorDate = todayISO();
 async function renderAdminWeekGrid(){
   const wrap = document.getElementById('adminWeekGridContent');
@@ -1362,6 +1372,7 @@ async function renderAdminWeekGrid(){
     </div>`;
   }
   wrap.innerHTML = html;
+  scrollWeekMiniToEnd(wrap);
 }
 document.getElementById('adminWeekPrev').onclick = ()=>{ const d=new Date(adminWeekAnchorDate+'T00:00:00'); d.setDate(d.getDate()-7); adminWeekAnchorDate=toLocalISODate(d); renderAdminWeekGrid(); };
 document.getElementById('adminWeekNext').onclick = ()=>{ const d=new Date(adminWeekAnchorDate+'T00:00:00'); d.setDate(d.getDate()+7); adminWeekAnchorDate=toLocalISODate(d); renderAdminWeekGrid(); };
@@ -2562,7 +2573,6 @@ async function renderAdmin(){
     return;
   }
   await renderAllVenuesOverview();
-  await renderAdminWeekGrid();
   renderCourtsManageTable();
   const { data, error } = await sb.from('reservations').select('*').order('date',{ascending:false});
   if(error){ toast('Chyba: '+error.message); return; }
