@@ -420,6 +420,11 @@
     <table class="admin-table" id="courtsManageTable"></table>
 
     <div class="admin-grid" id="adminStats"></div>
+
+    <div class="section-title">🧍 Sólo tréninky (posledních 30 dní)</div>
+    <p class="page-sub" style="margin-top:-6px;">Rezervace, kde člen čestně prohlásil, že hraje sám, a dostal plnou slevu na celý kurt — pro namátkovou kontrolu.</p>
+    <table class="admin-table" id="soloTrainingTable"></table>
+
     <div class="section-title">Čeká na platbu</div>
     <table class="admin-table" id="pendingTable"></table>
 
@@ -564,16 +569,17 @@
   </div>
 </div>
 
-<!-- DOKONČENÍ PROFILU (po prvním přihlášení) -->
+<!-- DOKONČENÍ PROFILU (po prvním přihlášení) / ÚPRAVA PROFILU -->
 <div class="overlay" id="profileOverlay">
   <div class="modal">
-    <h2>Dokončit registraci</h2>
-    <p class="modal-sub">Jméno a telefon potřebujeme kvůli rezervaci a QR platbě.</p>
+    <button class="modal-close" id="profileOverlayClose" style="display:none;" onclick="closeModal('profileOverlay')">×</button>
+    <h2 id="profileOverlayTitle">Dokončit registraci</h2>
+    <p class="modal-sub" id="profileOverlaySub">Jméno a telefon potřebujeme kvůli rezervaci a QR platbě.</p>
     <div class="field"><label>Jméno a příjmení</label><input id="profileName" placeholder="Jana Nováková"></div>
     <div class="field"><label>Telefon</label><input id="profilePhone" placeholder="+420 602 000 000"></div>
     <div class="field"><label>Herní úroveň</label><select id="profileLevel"></select><div id="profileLevelDetail"></div></div>
     <button class="btn btn-primary" style="width:100%;" onclick="saveProfile()">Uložit a pokračovat</button>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="logout();closeModal('profileOverlay')">Odhlásit se (přihlásit jiným účtem)</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" id="profileOverlayLogoutBtn" onclick="logout();closeModal('profileOverlay')">Odhlásit se (přihlásit jiným účtem)</button>
   </div>
 </div>
 
@@ -597,6 +603,13 @@
       <div class="field" style="flex:1;"><label>Konec</label><select id="endTimeSelect" onchange="onEndTimeChange()"></select></div>
     </div>
     <div id="organizerFields"></div>
+    <div class="checkbox-row" id="soloTrainingRow" style="display:none;">
+      <input type="checkbox" id="soloTrainingCheck" onchange="onSoloTrainingToggle(this.checked)">
+      <div style="flex:1;">
+        <div class="cb-title">Trénuji sám / bez dalších hráčů</div>
+        <div class="cb-sub">Uplatní tvoji plnou slevu na celou cenu kurtu (jinak se sleva dělí podle kapacity kurtu). Omezeno na max. 1 h a jde jen bez dalších hráčů — je to čestné prohlášení, admin to vidí v přehledu.</div>
+      </div>
+    </div>
     <div class="duration-box">
       <div class="dlabel"><span>Délka</span><span id="durationValueLabel"></span></div>
       <div class="drange-note" id="durationNote"></div>
@@ -982,6 +995,19 @@ function normalizeCzPhone(raw){
   if(/^[0-9]{9}$/.test(digits)) return '+420'+digits;
   return null;
 }
+let editingExistingProfile = false;
+function openEditProfile(){
+  if(!profile) return;
+  editingExistingProfile = true;
+  document.getElementById('profileOverlayTitle').textContent = 'Upravit profil';
+  document.getElementById('profileOverlaySub').textContent = 'Uprav si jméno, telefon nebo herní úroveň.';
+  document.getElementById('profileOverlayClose').style.display = '';
+  document.getElementById('profileOverlayLogoutBtn').style.display = 'none';
+  document.getElementById('profileName').value = profile.full_name || '';
+  document.getElementById('profilePhone').value = profile.phone || '';
+  populateLevelSelect('profileLevel', profile.level || 'C2', 'profileLevelDetail');
+  showModal('profileOverlay');
+}
 async function saveProfile(){
   const full_name = document.getElementById('profileName').value.trim();
   const rawPhone = document.getElementById('profilePhone').value.trim();
@@ -989,6 +1015,20 @@ async function saveProfile(){
   if(!full_name || !rawPhone){ toast('Vyplň jméno i telefon'); return; }
   const phone = normalizeCzPhone(rawPhone);
   if(!phone){ toast('Telefon nevypadá jako platné číslo (např. 602 123 456 nebo +420 602 123 456)'); return; }
+  if(editingExistingProfile){
+    const { data, error } = await sb.from('member_profiles').update({ full_name, phone, level }).eq('user_id', session.user.id).select().single();
+    if(error){ toast('Chyba: ' + error.message); return; }
+    profile = data;
+    editingExistingProfile = false;
+    document.getElementById('profileOverlayClose').style.display = 'none';
+    document.getElementById('profileOverlayLogoutBtn').style.display = '';
+    document.getElementById('profileOverlayTitle').textContent = 'Dokončit registraci';
+    document.getElementById('profileOverlaySub').textContent = 'Jméno a telefon potřebujeme kvůli rezervaci a QR platbě.';
+    closeModal('profileOverlay');
+    renderHeader(); renderAll();
+    toast('Profil uložen');
+    return;
+  }
   const { data, error } = await sb.from('member_profiles').insert({
     user_id: session.user.id, club_id: CLUB_ID, full_name, phone, level, role:'member', discount_percent:0
   }).select().single();
@@ -1009,6 +1049,7 @@ function renderHeader(){
       <div class="profile-pill" onclick="toggleProfileMenu(event)">
         <span class="dot"></span> ${profile.full_name.split(' ')[0]} ${isAdmin()?'· admin':''}
         <div class="profile-menu" id="profileMenu">
+          <button onclick="event.stopPropagation();closeProfileMenu();openEditProfile()">✏️ Upravit profil</button>
           <button onclick="event.stopPropagation();enablePushNotifications()">🔔 Povolit notifikace</button>
           <button onclick="event.stopPropagation();closeProfileMenu();logout()">Odhlásit se</button>
         </div>
@@ -1244,6 +1285,7 @@ async function renderGrid(){
         else if(profile && r.member_id===profile.user_id){ cls='mine'; tag = r.status==='pending_payment' ? 'Čeká platba' : 'Moje'; }
         else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Obsazeno'; clickable = true; }
         else { cls='taken'; tag = canManageVenue(currentLocationId) ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; clickable = canManageVenue(currentLocationId); }
+        if(r.is_solo_training && canManageVenue(currentLocationId)) tag = '🧍 ' + tag;
         html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" ${clickable?`onclick="openSlot('${court.id}',${s})"`:''}><span class="tag">${tag}</span></div></div>`;
         i += span;
       } else {
@@ -1453,7 +1495,8 @@ function openBookingModal({courtId, startHour, adminMode}){
     courtId, startHour, adminMode, loc,
     duration: loc.minDuration,
     players: adminMode ? [] : [{name: profile.full_name, discount: profile.discount_percent, isOrganizer:true}],
-    paidNow: false
+    paidNow: false,
+    isSolo: false
   };
   document.getElementById('bookingSub').textContent = `${loc.name} · ${fmtDate(selectedDate)}`;
   populateCourtSelect();
@@ -1491,6 +1534,8 @@ function openBookingModal({courtId, startHour, adminMode}){
       <div><div class="cb-title">Už zaplaceno (hotově / bar kredit)</div><div class="cb-sub">Jinak zůstane ve stavu „Čeká na platbu" s QR kódem.</div></div></div>
     <div class="field"><label>Poznámka (nepovinné)</label><input id="adminNote" placeholder="např. MultiSport — 2 karty, zdarma"></div>` : '';
 
+  document.getElementById('soloTrainingRow').style.display = adminMode ? 'none' : '';
+  document.getElementById('soloTrainingCheck').checked = false;
   document.querySelector('.players-box .p-title').textContent = `Hráči se slevou (nepovinné, max. ${loc.maxPlayers} na kurtu)`;
 
   renderPlayersList();
@@ -1524,9 +1569,21 @@ function onStartTimeChange(){
   booking.startHour = parseFloat(document.getElementById('startTimeSelect').value);
   populateEndSelect();
 }
+function onSoloTrainingToggle(checked){
+  booking.isSolo = checked;
+  if(checked){
+    // Sólo trénink = jen organizátor, žádní další hráči v rezervaci
+    booking.players = booking.players.filter(p=>p.isOrganizer);
+    document.querySelector('.players-box').style.display = 'none';
+  } else {
+    document.querySelector('.players-box').style.display = '';
+  }
+  renderPlayersList();
+  populateEndSelect();
+}
 function populateEndSelect(){
   const loc = booking.loc;
-  const maxDur = computeMaxDuration(loc, booking.courtId, booking.startHour);
+  const maxDur = booking.isSolo ? Math.min(Math.max(1, loc.minDuration), computeMaxDuration(loc, booking.courtId, booking.startHour)) : computeMaxDuration(loc, booking.courtId, booking.startHour);
   const ends = [];
   for(let d=loc.minDuration; d<=maxDur+1e-9; d+=loc.slotStep){
     ends.push(Math.round((booking.startHour+d)*(1/loc.slotStep))/(1/loc.slotStep));
@@ -1570,7 +1627,7 @@ function updateSeriesSummary(){
   const base = Math.round(booking.duration * booking.loc.priceHour);
   const seriesPlayers = booking.players.length ? booking.players : [{discount:0}];
   const seriesOrganizer = seriesPlayers.find(p=>p.isOrganizer) || seriesPlayers[0];
-  const discount = seriesOrganizer.discount === 100 ? 100 : avgDiscount(seriesPlayers);
+  const discount = (booking.isSolo || seriesOrganizer.discount === 100) ? seriesOrganizer.discount : avgDiscount(seriesPlayers);
   const perOccurrence = Math.round(base * (1 - discount/100));
   const total = perOccurrence * count;
   summaryEl.innerHTML = `<b>${count}× termín</b> po ${perOccurrence} Kč = <b>${total} Kč celkem za sérii</b><br>Neplatí se ale najednou — každý termín má vlastní QR platbu (najdeš postupně v „Moje rezervace").`;
@@ -1672,7 +1729,7 @@ function updatePriceBox(){
   const base = Math.round(booking.duration * booking.loc.priceHour);
   const players = booking.players.length ? booking.players : [{discount:0}];
   const organizer = players.find(p=>p.isOrganizer) || players[0];
-  const discount = organizer.discount === 100 ? 100 : avgDiscount(players);
+  const discount = (booking.isSolo || organizer.discount === 100) ? organizer.discount : avgDiscount(players);
   const total = Math.round(base * (1 - discount/100));
   document.getElementById('priceDurationLabel').textContent = booking.duration + ' h';
   document.getElementById('basePriceLabel').textContent = base + ' Kč';
@@ -1703,7 +1760,7 @@ function buildBasePayload(date){
   const organizer = booking.players.find(p=>p.isOrganizer) || booking.players[0];
   // Trenér (100% sleva) rezervuje celý kurt zdarma, i když by se jinak sleva
   // poměrně rozpočítávala mezi všechny hráče podle kapacity kurtu.
-  const discount = organizer.discount === 100 ? 100 : avgDiscount(booking.players);
+  const discount = (booking.isSolo || organizer.discount === 100) ? organizer.discount : avgDiscount(booking.players);
   const amount = Math.round(base * (1 - discount/100));
   const paidNow = booking.adminMode && booking.paidNow;
   return {
@@ -1712,11 +1769,12 @@ function buildBasePayload(date){
       member_id: booking.adminMode ? null : profile.user_id,
       organizer_name: organizer.name,
       organizer_phone: booking.adminMode ? (document.getElementById('orgPhone').value||'') : profile.phone,
+      organizer_level: booking.adminMode ? null : profile.level,
       date, start_hour: booking.startHour, duration_hours: booking.duration, end_hour: booking.startHour + booking.duration,
       type: 'member_booking',
       status: (amount===0 || paidNow) ? 'paid_confirmed' : 'pending_payment',
       base_price: base, discount_applied: discount, amount_due: amount,
-      players: booking.players, is_open_match: false,
+      players: booking.players, is_open_match: false, is_solo_training: !!booking.isSolo,
       created_by: booking.adminMode ? (session.user.email) : null,
       paid_at: (amount===0 || paidNow) ? new Date().toISOString() : null,
       admin_note: booking.adminMode ? (document.getElementById('adminNote')?.value.trim() || null) : null
@@ -1962,13 +2020,20 @@ async function renderOpen(){
   el.innerHTML = data.map(r=>{
     const om = r.open_matches[0];
     const court = findCourt(r.court_id);
-    const joined = om ? om.open_match_players.length : 0;
+    const players = om ? om.open_match_players : [];
+    const joined = players.length;
     const needed = om ? om.players_needed : 2;
     const levelLabel = (PLAYER_LEVELS.find(l=>l.code===(om && om.level)) || {label: om ? om.level : ''}).label;
+    const levelOf = code => (PLAYER_LEVELS.find(l=>l.code===code) || {label: code || '—'}).label;
+    const organizerLevelTxt = r.organizer_level ? ` (${levelOf(r.organizer_level)})` : '';
+    const playersListTxt = players.length
+      ? players.map(p=>`${p.member_name || 'Hráč'}${p.member_level ? ` (${levelOf(p.member_level)})` : ''}`).join(', ')
+      : 'zatím nikdo';
     const waText = encodeURIComponent(`Hledáme hráče! ${court.locationName} – ${court.name}, ${fmtDate(r.date)} v ${formatHour(r.start_hour)}. Úroveň: ${levelLabel}. Chybí ${Math.max(needed-joined,0)} hráč(i). Napiš ${r.organizer_name} (${r.organizer_phone||''}).`);
     return `<div class="card"><div class="info">
         <b>${court.locationName} · ${court.name} · ${formatHour(r.start_hour)}</b>
-        <div class="meta">${fmtDate(r.date)} · organizuje ${r.organizer_name} · ${levelLabel} · přihlášeno ${joined}/${needed}</div>
+        <div class="meta">${fmtDate(r.date)} · organizuje ${r.organizer_name}${organizerLevelTxt} · hledá úroveň ${levelLabel}</div>
+        <div class="meta">Přihlášeno ${joined}/${needed}: ${playersListTxt}</div>
       </div><div class="actions">
         <button class="btn btn-sm btn-green" onclick="joinOpenMatch('${r.id}')">Přihlásit se</button>
         <a class="btn btn-sm btn-dark" style="text-decoration:none;" href="https://wa.me/?text=${waText}" target="_blank">WhatsApp</a>
@@ -1981,7 +2046,7 @@ async function joinOpenMatch(reservationId){
   if(error || !om){ toast('Open match nenalezen'); return; }
   if(om.open_match_players.some(p=>p.member_id===profile.user_id)){ toast('Už jsi přihlášen'); return; }
   if(om.open_match_players.length >= om.players_needed){ toast('Zápas je už plný'); return; }
-  const { error: joinErr } = await sb.from('open_match_players').insert({ open_match_id: om.id, member_id: profile.user_id });
+  const { error: joinErr } = await sb.from('open_match_players').insert({ open_match_id: om.id, member_id: profile.user_id, member_name: profile.full_name, member_level: profile.level });
   if(joinErr){ toast('Chyba: '+joinErr.message); return; }
   toast('Přihlášen do Open Match');
   await renderOpen();
@@ -2455,6 +2520,7 @@ function buildAllVenuesGridsHtml(allRes){
           else if(profile && r.member_id===profile.user_id){ cls='mine'; tag = r.status==='pending_payment' ? 'Čeká platba' : 'Moje'; }
           else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Obsazeno'; }
           else { cls='taken'; tag = isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; }
+          if(r.is_solo_training && isAdmin()) tag = '🧍 ' + tag;
           html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" onclick="openOverviewSlot('${slug}','${court.id}',${s})"><span class="tag">${tag}</span></div></div>`;
           i += span;
         } else {
@@ -2588,6 +2654,17 @@ async function renderAdmin(){
     <div class="stat-card"><div class="num">${paid}</div><div class="lbl">Zaplaceno</div></div>
     <div class="stat-card"><div class="num">${pending.length}</div><div class="lbl">Čeká na platbu</div></div>
     <div class="stat-card"><div class="num">${revenue} Kč</div><div class="lbl">Tržba</div></div>`;
+
+  const soloCutoff = toLocalISODate(new Date(Date.now() - 30*86400000));
+  const soloBookings = data.filter(r => r.is_solo_training && r.date >= soloCutoff && !['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status));
+  document.getElementById('soloTrainingTable').innerHTML = soloBookings.length ? `
+    <tr><th>Datum</th><th>Kurt</th><th>Čas</th><th>Kdo</th><th>Sleva</th><th>Cena</th></tr>
+    ${soloBookings.map(r=>{
+      const loc = Object.values(venuesConfig).find(v=>v.id===r.venue_id);
+      const court = loc ? loc.courts.find(c=>c.id===r.court_id) : null;
+      return `<tr><td>${fmtDate(r.date)}</td><td>${loc?loc.name:'—'} · ${court?court.name:'—'}</td><td>${formatHour(r.start_hour)}–${formatHour(r.end_hour)}</td><td>${r.organizer_name||'—'}</td><td>${r.discount_applied} %</td><td>${r.amount_due} Kč</td></tr>`;
+    }).join('')}
+  ` : `<tr><td style="padding:16px;color:#948e83;">Žádné sólo tréninky za posledních 30 dní</td></tr>`;
 
   document.getElementById('pendingTable').innerHTML = pending.length ? `
     <tr><th>Hřiště</th><th>Kurt</th><th>Datum</th><th>Čas</th><th>Kdo</th><th>Částka</th><th></th></tr>
