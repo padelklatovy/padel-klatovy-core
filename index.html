@@ -1275,11 +1275,11 @@ async function toggleWeekView(){
 }
 function buildMiniDayGridHtml(loc, dateStr, dayReservations){
   const starts = slotStarts(loc);
-  let html = `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},15px);"><div class="cell court-label" style="border-radius:0;"></div>`;
+  let html = `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},minmax(15px,1fr));"><div class="cell court-label" style="border-radius:0;"></div>`;
   starts.forEach(s => html += `<div class="hcell ${s%1!==0?'half':''}">${s%1!==0?'':formatHour(s)}</div>`);
   html += `</div>`;
   loc.courts.forEach(court => {
-    html += `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},15px);"><div class="cell court-label">${court.name}</div>`;
+    html += `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},minmax(15px,1fr));"><div class="cell court-label">${court.name}</div>`;
     if(court.isActive === false){
       html += `<div class="cell" style="grid-column: span ${starts.length};"><div class="slot closed spanning"></div></div></div>`;
       return;
