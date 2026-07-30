@@ -1148,6 +1148,7 @@ async function loadVenues(){
       priceHour: Number(v.price_per_hour), minDuration: Number(v.min_duration_hours),
       slotStep: v.slot_step_minutes/60, dayStart: Math.min(...allStarts), dayEnd: Math.max(...allEnds),
       bookingWindowDays: v.booking_window_days, minPlayers: v.min_players, maxPlayers: v.max_players,
+      isVisible: v.is_visible !== false,
       courts
     };
   });
@@ -1184,7 +1185,7 @@ const VENUE_MEDIA = {
 };
 function renderProductSelector(){
   const el = document.getElementById('productSelector');
-  el.innerHTML = orderedVenueSlugs().map(slug=>{
+  el.innerHTML = orderedVenueSlugs().filter(slug=>venuesConfig[slug].isVisible).map(slug=>{
     const loc = venuesConfig[slug];
     const media = VENUE_MEDIA[slug] || {};
     const occ = todayOccupancy[slug];
@@ -2496,7 +2497,7 @@ function buildAllVenuesGridsHtml(allRes){
   let html = '';
   OVERVIEW_ORDER.forEach(slug=>{
     const loc = venuesConfig[slug];
-    if(!loc) return;
+    if(!loc || !loc.isVisible) return;
     const starts = slotStarts(loc);
     const venueRes = allRes.filter(r=>r.venue_id===loc.id && !['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status));
     const hc = VENUE_HEADER_COLOR[slug] || 'var(--ink)';
