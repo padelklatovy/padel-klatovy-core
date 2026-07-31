@@ -2263,6 +2263,13 @@ async function openAdminSlotModal(courtId, hour, existing){
       </div>
       ${seriesShortenHtml}
       <div class="field" style="margin-top:10px;">
+        <label>${existing.series_id ? 'Přejmenovat organizátora / celou sérii' : 'Přejmenovat organizátora'}</label>
+        <div style="display:flex;gap:8px;">
+          <input id="renameOrganizerInput" value="${existing.organizer_name || ''}" style="flex:1;">
+          <button class="btn btn-sm btn-dark" onclick="renameOrganizer('${existing.id}','${existing.series_id || ''}')">Přejmenovat</button>
+        </div>
+      </div>
+      <div class="field" style="margin-top:10px;">
         <label>${existing.admin_note ? 'Upravit poznámku' : 'Přidat poznámku'} (např. MultiSport — vráceno hotově)</label>
         <div style="display:flex;gap:8px;">
           <input id="editNoteInput" value="${existing.admin_note || ''}" style="flex:1;">
@@ -3373,6 +3380,21 @@ async function updateReservationNote(id){
   const { error } = await sb.from('reservations').update({admin_note: note || null}).eq('id', id);
   if(error){ toast('Chyba: '+error.message); return; }
   toast('Poznámka uložena');
+  closeModal('adminSlotOverlay');
+  await renderAll();
+}
+async function renameOrganizer(id, seriesId){
+  const newName = (document.getElementById('renameOrganizerInput').value || '').trim();
+  if(!newName){ toast('Vyplň jméno'); return; }
+  if(seriesId){
+    const { error } = await sb.from('reservations').update({ organizer_name: newName, series_name: newName }).eq('series_id', seriesId);
+    if(error){ toast('Chyba: '+error.message); return; }
+    toast(`Přejmenováno u celé série na „${newName}"`);
+  } else {
+    const { error } = await sb.from('reservations').update({ organizer_name: newName }).eq('id', id);
+    if(error){ toast('Chyba: '+error.message); return; }
+    toast('Přejmenováno');
+  }
   closeModal('adminSlotOverlay');
   await renderAll();
 }
