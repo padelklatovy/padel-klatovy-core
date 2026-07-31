@@ -106,6 +106,7 @@
   .court-label small{font-weight:400;font-size:10px;color:#6E6E6E;text-transform:uppercase;letter-spacing:0.4px;}
   .cell{min-width:34px;background:#fff;}
   .slot{height:44px;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;transition:transform .12s ease,box-shadow .12s ease;overflow:hidden;border-radius:8px;margin:2px;}
+  .slot.closed{cursor:default;}
   .slot:hover{transform:scale(1.04);box-shadow:0 2px 6px rgba(0,0,0,0.12);z-index:1;background:#FDECEC;}
   .slot.free{background:#fff;}
   .slot.mine{background:var(--green);}
@@ -1345,10 +1346,10 @@ function buildMiniDayGridHtml(loc, dateStr, dayReservations){
         if(r.status==='club_blocked'){ cls='event'; tag = r.event_name || 'Akce'; }
         else if(r.is_open_match && r.status==='paid_confirmed'){ cls='openmatch'; tag = r.organizer_name || 'Open Match'; }
         else if(Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Zdarma'; }
-        html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" title="${tag}"><span class="tag">${tag}</span></div></div>`;
+        html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" title="${tag} (klikni pro úpravu)" onclick="openWeekSlotEdit('${dateStr}','${court.id}',${s})"><span class="tag">${tag}</span></div></div>`;
         i += span;
       } else {
-        html += `<div class="cell"><div class="slot free"></div></div>`;
+        html += `<div class="cell"><div class="slot free" title="Vytvořit rezervaci" onclick="openWeekSlotEdit('${dateStr}','${court.id}',${s})"></div></div>`;
         i += 1;
       }
     }
@@ -1361,6 +1362,14 @@ function goToKlatovyDay(dateStr){
   selectedDate = dateStr;
   switchView('reservations');
   selectProduct('padel-klatovy');
+}
+async function openWeekSlotEdit(dateStr, courtId, startHour){
+  currentLocationId = 'padel-klatovy';
+  selectedDate = dateStr;
+  switchView('reservations');
+  await selectProduct('padel-klatovy'); // dotáhne gridReservations pro daný den
+  const existing = findReservationAt(courtId, startHour);
+  openAdminSlotModal(courtId, startHour, existing);
 }
 async function renderWeekGrid(){
   const wrap = document.getElementById('weekGridContent');
