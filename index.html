@@ -829,6 +829,7 @@ function renderLevelDetailBox(boxId, code){
 let session = null;
 let profile = null;             // řádek z member_profiles
 let CLUB_ID = null;
+const CLUB_PHONE = '602 431 363';
 let venuesConfig = {};          // slug -> {id, name, priceHour, minDuration, slotStep, dayStart, dayEnd, bookingWindowDays, minPlayers, maxPlayers, courts:[...]}
 let currentLocationId = null;
 let selectedDate = todayISO();
@@ -1984,7 +1985,7 @@ async function renderMine(){
         <div class="meta">${active.length} termínů · ${dates[0]} – ${dates[dates.length-1]} · ${formatHour(active[0].start_hour)}–${formatHour(active[0].end_hour)}${unpaidCount?` · ${unpaidCount}× čeká na platbu`:''}</div>
       </div><div class="actions">
         ${firstUnpaid ? `<button class="btn btn-sm btn-ghost" onclick='openPaymentModalFor(${JSON.stringify(firstUnpaid)})'>Zaplatit celou sérii (${active.filter(r=>r.status==='pending_payment').reduce((s,r)=>s+Number(r.amount_due||0),0)} Kč)</button>` : `<span class="status-pill paid">Vše zaplaceno</span>`}
-        <button class="btn btn-sm btn-ghost" onclick="cancelSeries('${sid}')">Zrušit celou sérii</button>
+        <a class="meta" href="tel:${CLUB_PHONE.replace(/\s/g,'')}" style="text-decoration:underline;">Zrušení: zavolej ${CLUB_PHONE}</a>
       </div></div>`;
   }).join('');
 
@@ -2007,14 +2008,14 @@ async function renderMine(){
       </div><div class="actions">
         ${statusHtml}
         ${r.status==='pending_payment' ? `<button class="btn btn-sm btn-ghost" onclick='openPaymentModalFor(${JSON.stringify(r)})'>Zaplatit</button>` : ''}
-        ${['pending_payment','paid_confirmed'].includes(r.status) ? `<button class="btn btn-sm btn-ghost" onclick="cancelReservation('${r.id}')">Zrušit</button>` : ''}
+        ${['pending_payment','paid_confirmed'].includes(r.status) ? `<a class="meta" href="tel:${CLUB_PHONE.replace(/\s/g,'')}" style="text-decoration:underline;">Zrušení: zavolej ${CLUB_PHONE}</a>` : ''}
       </div></div>`;
   }).join('');
 
   el.innerHTML = seriesCards + singleCards || emptyState('Zatím žádné aktivní rezervace', 'Vyber si hřiště v Rezervacích.');
 }
 async function cancelReservation(id){
-  const status = isAdmin() ? 'cancelled_by_admin' : 'cancelled_by_user';
+  const status = (isAdmin() || (profile && profile.role==='recepce')) ? 'cancelled_by_admin' : 'cancelled_by_user';
   const { data: existing } = await sb.from('reservations').select('status, amount_due').eq('id', id).single();
   const wasPaid = existing && existing.status === 'paid_confirmed' && Number(existing.amount_due) > 0;
   const updatePayload = wasPaid ? { status, refund_status: 'pending', refund_amount: existing.amount_due } : { status };
@@ -3321,7 +3322,7 @@ async function shortenSeries(seriesId){
   await renderAll();
 }
 async function cancelSeries(seriesId){
-  const status = isAdmin() ? 'cancelled_by_admin' : 'cancelled_by_user';
+  const status = (isAdmin() || (profile && profile.role==='recepce')) ? 'cancelled_by_admin' : 'cancelled_by_user';
   const { data: paidOnes } = await sb.from('reservations').select('id, amount_due').eq('series_id', seriesId).eq('status','paid_confirmed');
   const { error } = await sb.from('reservations').update({status}).eq('series_id', seriesId).not('status','in','(cancelled_by_user,cancelled_by_admin,expired)');
   if(error){ toast('Chyba: '+error.message); return; }
