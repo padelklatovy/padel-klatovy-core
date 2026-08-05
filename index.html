@@ -433,6 +433,10 @@
     <p class="page-sub" style="margin-top:-6px;">Rezervace, kde člen čestně prohlásil, že hraje sám, a dostal plnou slevu na celý kurt — pro namátkovou kontrolu.</p>
     <table class="admin-table" id="soloTrainingTable"></table>
 
+    <div class="section-title">🍹 Platby na místě přes QR na baru (VS 406, posledních 30 dní)</div>
+    <p class="page-sub" style="margin-top:-6px;">Tyto platby nejsou vázané na žádnou rezervaci (může to být celý kurt nebo jen podíl jednoho hráče) — jen evidence pro účetnictví.</p>
+    <table class="admin-table" id="onsiteBarPaymentsTable"></table>
+
     <div class="section-title">Čeká na platbu</div>
     <table class="admin-table" id="pendingTable"></table>
 
@@ -627,6 +631,17 @@
       <div id="playersList"></div>
       <button class="add-player-btn" id="addPlayerBtn" onclick="addPlayerRow()">+ Přidat spoluhráče</button>
     </div>
+    <div class="field" style="margin-top:6px;">
+      <label>Potřebujete zapůjčit rakety?</label>
+      <select id="racketsSelect" onchange="updatePriceBox()">
+        <option value="0">Ne</option>
+        <option value="1">Ano, 1 raketu</option>
+        <option value="2">Ano, 2 rakety</option>
+        <option value="3">Ano, 3 rakety</option>
+        <option value="4">Ano, 4 rakety</option>
+      </select>
+      <div style="font-size:12px;color:#948e83;margin-top:4px;">Zapůjčení raket je součástí rezervace kurtu a neplatí se samostatně.</div>
+    </div>
     <div class="checkbox-row">
       <input type="checkbox" id="repeatCheck" onchange="onRepeatToggle(this.checked)">
       <div style="flex:1;">
@@ -660,6 +675,7 @@
     <div class="price-box">
       <div class="price-row"><span>Cena (<span id="priceDurationLabel"></span>)</span><span id="basePriceLabel"></span></div>
       <div class="price-row" id="discountRow"><span>Průměrná sleva hráčů</span><span id="discountLabel"></span></div>
+      <div class="price-row" id="racketsPriceRow" style="display:none;"><span>Zapůjčení raket</span><span id="racketsPriceLabel"></span></div>
       <div class="price-row total"><span>K úhradě</span><span id="totalPriceLabel"></span></div>
     </div>
     <button class="btn btn-primary" style="width:100%;" id="confirmBookingBtn" onclick="confirmBooking()">Vytvořit rezervaci</button>
@@ -1296,6 +1312,7 @@ async function renderGrid(){
         else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Obsazeno'; clickable = true; }
         else { cls='taken'; tag = canManageVenue(currentLocationId) ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; clickable = canManageVenue(currentLocationId); }
         if(r.is_solo_training && canManageVenue(currentLocationId)) tag = '🧍 ' + tag;
+        if(r.rackets_requested > 0 && canManageVenue(currentLocationId)) tag = tag + ' 🎾' + r.rackets_requested;
         html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" ${clickable?`onclick="openSlot('${court.id}',${s})"`:''}><span class="tag">${tag}</span></div></div>`;
         i += span;
       } else {
@@ -1554,6 +1571,7 @@ function openBookingModal({courtId, startHour, adminMode}){
 
   document.getElementById('soloTrainingRow').style.display = adminMode ? 'none' : '';
   document.getElementById('soloTrainingCheck').checked = false;
+  document.getElementById('racketsSelect').value = '0';
   document.querySelector('.players-box .p-title').textContent = `Hráči se slevou (nepovinné, max. ${loc.maxPlayers} na kurtu)`;
 
   renderPlayersList();
@@ -1743,18 +1761,30 @@ function enableSmartFillFromNudge(){
   document.getElementById('smartFillNudge').style.display = 'none';
   document.getElementById('openMatchRow').scrollIntoView({behavior:'smooth', block:'center'});
 }
+function racketsPriceFor(count, isMember){
+  if(!count) return 0;
+  return Math.round(count * 50 * (isMember ? 0.8 : 1));
+}
 function updatePriceBox(){
   const base = Math.round(booking.duration * booking.loc.priceHour);
   const players = booking.players.length ? booking.players : [{discount:0}];
   const organizer = players.find(p=>p.isOrganizer) || players[0];
   const discount = (booking.isSolo || organizer.discount === 100) ? organizer.discount : avgDiscount(players);
-  const total = Math.round(base * (1 - discount/100));
+  const courtAmount = Math.round(base * (1 - discount/100));
+  const rackets = booking.adminMode ? 0 : Number(document.getElementById('racketsSelect')?.value || 0);
+  const isMember = !booking.adminMode && profile && profile.membership_tier && profile.membership_tier !== 'none';
+  const racketsPrice = racketsPriceFor(rackets, isMember);
+  const total = courtAmount + racketsPrice;
   document.getElementById('priceDurationLabel').textContent = booking.duration + ' h';
   document.getElementById('basePriceLabel').textContent = base + ' Kč';
   if(discount > 0){
     document.getElementById('discountRow').style.display='flex';
     document.getElementById('discountLabel').innerHTML = `<span class="badge-discount">−${discount} %</span>`;
   } else { document.getElementById('discountRow').style.display='none'; }
+  if(racketsPrice > 0){
+    document.getElementById('racketsPriceRow').style.display='flex';
+    document.getElementById('racketsPriceLabel').textContent = `${rackets}× 50 Kč${isMember?' (−20 %)':''} = ${racketsPrice} Kč`;
+  } else { document.getElementById('racketsPriceRow').style.display='none'; }
   document.getElementById('totalPriceLabel').textContent = total + ' Kč';
   updateSeriesSummary();
   updateSmartFillNudge();
@@ -1779,7 +1809,11 @@ function buildBasePayload(date){
   // Trenér (100% sleva) rezervuje celý kurt zdarma, i když by se jinak sleva
   // poměrně rozpočítávala mezi všechny hráče podle kapacity kurtu.
   const discount = (booking.isSolo || organizer.discount === 100) ? organizer.discount : avgDiscount(booking.players);
-  const amount = Math.round(base * (1 - discount/100));
+  const courtAmount = Math.round(base * (1 - discount/100));
+  const rackets = booking.adminMode ? 0 : Number(document.getElementById('racketsSelect')?.value || 0);
+  const isMember = !booking.adminMode && profile && profile.membership_tier && profile.membership_tier !== 'none';
+  const racketsPrice = racketsPriceFor(rackets, isMember);
+  const amount = courtAmount + racketsPrice;
   const paidNow = booking.adminMode && booking.paidNow;
   return {
     payload: {
@@ -1792,6 +1826,7 @@ function buildBasePayload(date){
       type: 'member_booking',
       status: (amount===0 || paidNow) ? 'paid_confirmed' : 'pending_payment',
       base_price: base, discount_applied: discount, amount_due: amount,
+      rackets_requested: rackets, rackets_price: racketsPrice,
       players: booking.players, is_open_match: false, is_solo_training: !!booking.isSolo,
       created_by: booking.adminMode ? (session.user.email) : null,
       paid_at: (amount===0 || paidNow) ? new Date().toISOString() : null,
@@ -2259,6 +2294,7 @@ async function openAdminSlotModal(courtId, hour, existing){
         ${existing.organizer_phone ? `<div class="price-row"><span>Telefon</span><span><a href="tel:${existing.organizer_phone}" style="color:var(--green);font-weight:600;">${existing.organizer_phone}</a></span></div>` : ''}
         <div class="price-row"><span>Čas</span><span>${formatHour(existing.start_hour)}–${formatHour(existing.end_hour)}</span></div>
         <div class="price-row"><span>Stav</span><span>${statusLabel}</span></div>
+        ${existing.rackets_requested > 0 ? `<div class="price-row"><span>Rakety</span><span><b>🎾 ${existing.rackets_requested}×</b> (${existing.rackets_price} Kč v ceně)</span></div>` : ''}
         ${seriesRangeHtml}
         ${existing.admin_note ? `<div class="price-row"><span>Poznámka</span><span>${existing.admin_note}</span></div>` : ''}
       </div>
@@ -2546,6 +2582,7 @@ function buildAllVenuesGridsHtml(allRes){
           else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Obsazeno'; }
           else { cls='taken'; tag = isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; }
           if(r.is_solo_training && isAdmin()) tag = '🧍 ' + tag;
+          if(r.rackets_requested > 0 && isAdmin()) tag = tag + ' 🎾' + r.rackets_requested;
           html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" onclick="openOverviewSlot('${slug}','${court.id}',${s})"><span class="tag">${tag}</span></div></div>`;
           i += span;
         } else {
@@ -2691,6 +2728,13 @@ async function renderAdmin(){
     }).join('')}
   ` : `<tr><td style="padding:16px;color:#948e83;">Žádné sólo tréninky za posledních 30 dní</td></tr>`;
 
+  const barCutoff = toLocalISODate(new Date(Date.now() - 30*86400000));
+  const { data: barPayments } = await sb.from('onsite_bar_payments').select('*').gte('transaction_date', barCutoff).order('transaction_date',{ascending:false});
+  document.getElementById('onsiteBarPaymentsTable').innerHTML = (barPayments && barPayments.length) ? `
+    <tr><th>Datum</th><th>Částka</th><th>Plátce</th><th>Zpráva</th></tr>
+    ${barPayments.map(p=>`<tr><td>${p.transaction_date}</td><td>${p.amount} Kč</td><td>${p.payer_name||'—'}</td><td>${p.message_for_recipient||'—'}</td></tr>`).join('')}
+  ` : `<tr><td style="padding:16px;color:#948e83;">Žádné platby na baru za posledních 30 dní</td></tr>`;
+
   document.getElementById('pendingTable').innerHTML = pending.length ? `
     <tr><th>Hřiště</th><th>Kurt</th><th>Datum</th><th>Čas</th><th>Kdo</th><th>Částka</th><th></th></tr>
     ${pending.map(r=>{ const court=findCourt(r.court_id); return `<tr>
@@ -2750,6 +2794,7 @@ function renderAdminTable(){
 async function adminConfirm(id){
   const res = await confirmPaymentCascade(id, session.user.email);
   if(!res){ toast('Chyba při potvrzování platby'); return; }
+  await sb.from('payment_audit_log').insert({club_id: CLUB_ID, reservation_id: id, action:'manual_confirm', detail: res.series_id ? 'Ručně potvrzena celá série' : 'Ručně potvrzena rezervace', performed_by: session.user.email});
   toast(res.series_id ? 'Celá série ručně potvrzena' : 'Rezervace ručně potvrzena');
   await renderAll();
 }
