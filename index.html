@@ -429,6 +429,22 @@
 
     <div class="admin-grid" id="adminStats"></div>
 
+    <div class="section-title">📊 Tržby podle období</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
+      <div class="field" style="margin-bottom:0;">
+        <label>Období</label>
+        <select id="revenuePeriodSelect" onchange="onRevenuePeriodChange()">
+          <option value="this_month">Aktuální měsíc</option>
+          <option value="last_month">Minulý měsíc</option>
+          <option value="last_30">Posledních 30 dní</option>
+          <option value="custom">Vlastní rozsah</option>
+        </select>
+      </div>
+      <div class="field" id="revenueCustomFrom" style="display:none;margin-bottom:0;"><label>Od</label><input type="date" id="revenueFrom" onchange="renderRevenueBreakdown()"></div>
+      <div class="field" id="revenueCustomTo" style="display:none;margin-bottom:0;"><label>Do</label><input type="date" id="revenueTo" onchange="renderRevenueBreakdown()"></div>
+    </div>
+    <div id="revenueBreakdown">Načítání…</div>
+
     <div class="section-title">🧍 Sólo tréninky (posledních 30 dní)</div>
     <p class="page-sub" style="margin-top:-6px;">Rezervace, kde člen čestně prohlásil, že hraje sám, a dostal plnou slevu na celý kurt — pro namátkovou kontrolu.</p>
     <table class="admin-table" id="soloTrainingTable"></table>
@@ -2695,6 +2711,69 @@ async function markRefunded(id){
   toast('Označeno jako vráceno');
   await renderRefundsPending();
 }
+/* ================= TRŽBY PODLE OBDOBÍ ================= */
+function onRevenuePeriodChange(){
+  const period = document.getElementById('revenuePeriodSelect').value;
+  const custom = period === 'custom';
+  document.getElementById('revenueCustomFrom').style.display = custom ? '' : 'none';
+  document.getElementById('revenueCustomTo').style.display = custom ? '' : 'none';
+  renderRevenueBreakdown();
+}
+function revenuePeriodRange(){
+  const period = document.getElementById('revenuePeriodSelect').value;
+  const today = new Date();
+  if(period === 'custom'){
+    const from = document.getElementById('revenueFrom').value;
+    const to = document.getElementById('revenueTo').value;
+    return { from: from || toLocalISODate(today), to: to || toLocalISODate(today) };
+  }
+  if(period === 'last_30'){
+    const from = new Date(today); from.setDate(from.getDate()-30);
+    return { from: toLocalISODate(from), to: toLocalISODate(today) };
+  }
+  if(period === 'last_month'){
+    const firstThis = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastPrevMonth = new Date(firstThis.getTime() - 86400000);
+    const firstPrevMonth = new Date(lastPrevMonth.getFullYear(), lastPrevMonth.getMonth(), 1);
+    return { from: toLocalISODate(firstPrevMonth), to: toLocalISODate(lastPrevMonth) };
+  }
+  // this_month (výchozí)
+  const first = new Date(today.getFullYear(), today.getMonth(), 1);
+  return { from: toLocalISODate(first), to: toLocalISODate(today) };
+}
+async function renderRevenueBreakdown(){
+  const el = document.getElementById('revenueBreakdown');
+  if(!el) return;
+  el.innerHTML = 'Načítání…';
+  const { from, to } = revenuePeriodRange();
+
+  const { data: reservations, error: e1 } = await sb.from('reservations').select('venue_id, amount_due').eq('status','paid_confirmed').gte('date', from).lte('date', to);
+  if(e1){ el.innerHTML = 'Chyba: '+e1.message; return; }
+  const { data: barPayments, error: e2 } = await sb.from('onsite_bar_payments').select('amount').gte('transaction_date', from).lte('transaction_date', to);
+  if(e2){ el.innerHTML = 'Chyba: '+e2.message; return; }
+
+  const byVenue = {};
+  (reservations||[]).forEach(r=>{
+    const loc = Object.values(venuesConfig).find(v=>v.id===r.venue_id);
+    const name = loc ? loc.name : 'Neznámý areál';
+    if(!byVenue[name]) byVenue[name] = { count:0, sum:0 };
+    byVenue[name].count++; byVenue[name].sum += Number(r.amount_due||0);
+  });
+  const venueRows = Object.entries(byVenue).sort((a,b)=>b[1].sum-a[1].sum);
+  const venueTotal = venueRows.reduce((s,[,v])=>s+v.sum, 0);
+  const venueCount = venueRows.reduce((s,[,v])=>s+v.count, 0);
+  const barSum = (barPayments||[]).reduce((s,p)=>s+Number(p.amount||0),0);
+  const barCount = (barPayments||[]).length;
+
+  el.innerHTML = `
+    <table class="admin-table">
+      <tr><th>Areál</th><th>Počet rezervací</th><th>Tržba</th></tr>
+      ${venueRows.map(([name,v])=>`<tr><td>${name}</td><td>${v.count}</td><td>${v.sum} Kč</td></tr>`).join('') || `<tr><td colspan="3" style="padding:16px;color:#948e83;">Žádné zaplacené rezervace v tomto období</td></tr>`}
+      <tr style="font-weight:700;"><td>Rezervace celkem</td><td>${venueCount}</td><td>${venueTotal} Kč</td></tr>
+      <tr><td>🍹 Platby na baru (VS 406)</td><td>${barCount}</td><td>${barSum} Kč</td></tr>
+      <tr style="font-weight:700;border-top:2px solid var(--line);"><td>Tržba celkem</td><td>${venueCount+barCount}</td><td>${venueTotal+barSum} Kč</td></tr>
+    </table>`;
+}
 async function renderAdmin(){
   if(!isAdmin()){
     document.getElementById('view-admin').innerHTML = `<h1 class="page-title">Admin</h1><div class="empty-state"><div class="em-title">Přístup jen pro adminy</div>Přihlas se účtem s rolí admin (nastaví se přímo v tabulce member_profiles).</div>`;
@@ -2702,6 +2781,7 @@ async function renderAdmin(){
   }
   await renderAllVenuesOverview();
   renderCourtsManageTable();
+  renderRevenueBreakdown();
   const { data, error } = await sb.from('reservations').select('*').order('date',{ascending:false});
   if(error){ toast('Chyba: '+error.message); return; }
   adminReservationsCache = data;
