@@ -429,29 +429,9 @@
 
     <div class="admin-grid" id="adminStats"></div>
 
-    <div class="section-title">📊 Tržby podle období</div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
-      <div class="field" style="margin-bottom:0;">
-        <label>Období</label>
-        <select id="revenuePeriodSelect" onchange="onRevenuePeriodChange()">
-          <option value="this_month">Aktuální měsíc</option>
-          <option value="last_month">Minulý měsíc</option>
-          <option value="last_30">Posledních 30 dní</option>
-          <option value="custom">Vlastní rozsah</option>
-        </select>
-      </div>
-      <div class="field" id="revenueCustomFrom" style="display:none;margin-bottom:0;"><label>Od</label><input type="date" id="revenueFrom" onchange="renderRevenueBreakdown()"></div>
-      <div class="field" id="revenueCustomTo" style="display:none;margin-bottom:0;"><label>Do</label><input type="date" id="revenueTo" onchange="renderRevenueBreakdown()"></div>
-    </div>
-    <div id="revenueBreakdown">Načítání…</div>
-
     <div class="section-title">🧍 Sólo tréninky (posledních 30 dní)</div>
     <p class="page-sub" style="margin-top:-6px;">Rezervace, kde člen čestně prohlásil, že hraje sám, a dostal plnou slevu na celý kurt — pro namátkovou kontrolu.</p>
     <table class="admin-table" id="soloTrainingTable"></table>
-
-    <div class="section-title">🍹 Platby na místě přes QR na baru (VS 406, posledních 30 dní)</div>
-    <p class="page-sub" style="margin-top:-6px;">Tyto platby nejsou vázané na žádnou rezervaci (může to být celý kurt nebo jen podíl jednoho hráče) — jen evidence pro účetnictví.</p>
-    <table class="admin-table" id="onsiteBarPaymentsTable"></table>
 
     <div class="section-title">Čeká na platbu</div>
     <table class="admin-table" id="pendingTable"></table>
@@ -647,17 +627,6 @@
       <div id="playersList"></div>
       <button class="add-player-btn" id="addPlayerBtn" onclick="addPlayerRow()">+ Přidat spoluhráče</button>
     </div>
-    <div class="field" style="margin-top:6px;">
-      <label>Potřebujete zapůjčit rakety?</label>
-      <select id="racketsSelect" onchange="updatePriceBox()">
-        <option value="0">Ne</option>
-        <option value="1">Ano, 1 raketu</option>
-        <option value="2">Ano, 2 rakety</option>
-        <option value="3">Ano, 3 rakety</option>
-        <option value="4">Ano, 4 rakety</option>
-      </select>
-      <div style="font-size:12px;color:#948e83;margin-top:4px;">Zapůjčení raket je součástí rezervace kurtu a neplatí se samostatně.</div>
-    </div>
     <div class="checkbox-row">
       <input type="checkbox" id="repeatCheck" onchange="onRepeatToggle(this.checked)">
       <div style="flex:1;">
@@ -691,7 +660,6 @@
     <div class="price-box">
       <div class="price-row"><span>Cena (<span id="priceDurationLabel"></span>)</span><span id="basePriceLabel"></span></div>
       <div class="price-row" id="discountRow"><span>Průměrná sleva hráčů</span><span id="discountLabel"></span></div>
-      <div class="price-row" id="racketsPriceRow" style="display:none;"><span>Zapůjčení raket</span><span id="racketsPriceLabel"></span></div>
       <div class="price-row total"><span>K úhradě</span><span id="totalPriceLabel"></span></div>
     </div>
     <button class="btn btn-primary" style="width:100%;" id="confirmBookingBtn" onclick="confirmBooking()">Vytvořit rezervaci</button>
@@ -1328,7 +1296,6 @@ async function renderGrid(){
         else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Obsazeno'; clickable = true; }
         else { cls='taken'; tag = canManageVenue(currentLocationId) ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; clickable = canManageVenue(currentLocationId); }
         if(r.is_solo_training && canManageVenue(currentLocationId)) tag = '🧍 ' + tag;
-        if(r.rackets_requested > 0 && canManageVenue(currentLocationId)) tag = tag + ' 🎾' + r.rackets_requested;
         html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" ${clickable?`onclick="openSlot('${court.id}',${s})"`:''}><span class="tag">${tag}</span></div></div>`;
         i += span;
       } else {
@@ -1587,7 +1554,6 @@ function openBookingModal({courtId, startHour, adminMode}){
 
   document.getElementById('soloTrainingRow').style.display = adminMode ? 'none' : '';
   document.getElementById('soloTrainingCheck').checked = false;
-  document.getElementById('racketsSelect').value = '0';
   document.querySelector('.players-box .p-title').textContent = `Hráči se slevou (nepovinné, max. ${loc.maxPlayers} na kurtu)`;
 
   renderPlayersList();
@@ -1757,6 +1723,8 @@ function removePlayerRow(idx){
 }
 function updateSmartFillNudge(){
   const nudge = document.getElementById('smartFillNudge');
+  if(nudge) nudge.style.display = 'none';
+  return; // Smart Fill dočasně schovaný — zbytek funkce viz níže, zůstává nedotčený pro snadné zapnutí zpět
   const checkbox = document.getElementById('openMatchCheck');
   if(!nudge || !checkbox) return;
   const maxPlayers = booking.loc.maxPlayers || 4;
@@ -1777,30 +1745,18 @@ function enableSmartFillFromNudge(){
   document.getElementById('smartFillNudge').style.display = 'none';
   document.getElementById('openMatchRow').scrollIntoView({behavior:'smooth', block:'center'});
 }
-function racketsPriceFor(count, isMember){
-  if(!count) return 0;
-  return Math.round(count * 50 * (isMember ? 0.8 : 1));
-}
 function updatePriceBox(){
   const base = Math.round(booking.duration * booking.loc.priceHour);
   const players = booking.players.length ? booking.players : [{discount:0}];
   const organizer = players.find(p=>p.isOrganizer) || players[0];
   const discount = (booking.isSolo || organizer.discount === 100) ? organizer.discount : avgDiscount(players);
-  const courtAmount = Math.round(base * (1 - discount/100));
-  const rackets = booking.adminMode ? 0 : Number(document.getElementById('racketsSelect')?.value || 0);
-  const isMember = !booking.adminMode && profile && profile.membership_tier && profile.membership_tier !== 'none';
-  const racketsPrice = racketsPriceFor(rackets, isMember);
-  const total = courtAmount + racketsPrice;
+  const total = Math.round(base * (1 - discount/100));
   document.getElementById('priceDurationLabel').textContent = booking.duration + ' h';
   document.getElementById('basePriceLabel').textContent = base + ' Kč';
   if(discount > 0){
     document.getElementById('discountRow').style.display='flex';
     document.getElementById('discountLabel').innerHTML = `<span class="badge-discount">−${discount} %</span>`;
   } else { document.getElementById('discountRow').style.display='none'; }
-  if(racketsPrice > 0){
-    document.getElementById('racketsPriceRow').style.display='flex';
-    document.getElementById('racketsPriceLabel').textContent = `${rackets}× 50 Kč${isMember?' (−20 %)':''} = ${racketsPrice} Kč`;
-  } else { document.getElementById('racketsPriceRow').style.display='none'; }
   document.getElementById('totalPriceLabel').textContent = total + ' Kč';
   updateSeriesSummary();
   updateSmartFillNudge();
@@ -1825,11 +1781,7 @@ function buildBasePayload(date){
   // Trenér (100% sleva) rezervuje celý kurt zdarma, i když by se jinak sleva
   // poměrně rozpočítávala mezi všechny hráče podle kapacity kurtu.
   const discount = (booking.isSolo || organizer.discount === 100) ? organizer.discount : avgDiscount(booking.players);
-  const courtAmount = Math.round(base * (1 - discount/100));
-  const rackets = booking.adminMode ? 0 : Number(document.getElementById('racketsSelect')?.value || 0);
-  const isMember = !booking.adminMode && profile && profile.membership_tier && profile.membership_tier !== 'none';
-  const racketsPrice = racketsPriceFor(rackets, isMember);
-  const amount = courtAmount + racketsPrice;
+  const amount = Math.round(base * (1 - discount/100));
   const paidNow = booking.adminMode && booking.paidNow;
   return {
     payload: {
@@ -1842,7 +1794,6 @@ function buildBasePayload(date){
       type: 'member_booking',
       status: (amount===0 || paidNow) ? 'paid_confirmed' : 'pending_payment',
       base_price: base, discount_applied: discount, amount_due: amount,
-      rackets_requested: rackets, rackets_price: racketsPrice,
       players: booking.players, is_open_match: false, is_solo_training: !!booking.isSolo,
       created_by: booking.adminMode ? (session.user.email) : null,
       paid_at: (amount===0 || paidNow) ? new Date().toISOString() : null,
@@ -2310,7 +2261,6 @@ async function openAdminSlotModal(courtId, hour, existing){
         ${existing.organizer_phone ? `<div class="price-row"><span>Telefon</span><span><a href="tel:${existing.organizer_phone}" style="color:var(--green);font-weight:600;">${existing.organizer_phone}</a></span></div>` : ''}
         <div class="price-row"><span>Čas</span><span>${formatHour(existing.start_hour)}–${formatHour(existing.end_hour)}</span></div>
         <div class="price-row"><span>Stav</span><span>${statusLabel}</span></div>
-        ${existing.rackets_requested > 0 ? `<div class="price-row"><span>Rakety</span><span><b>🎾 ${existing.rackets_requested}×</b> (${existing.rackets_price} Kč v ceně)</span></div>` : ''}
         ${seriesRangeHtml}
         ${existing.admin_note ? `<div class="price-row"><span>Poznámka</span><span>${existing.admin_note}</span></div>` : ''}
       </div>
@@ -2598,7 +2548,6 @@ function buildAllVenuesGridsHtml(allRes){
           else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Obsazeno'; }
           else { cls='taken'; tag = isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; }
           if(r.is_solo_training && isAdmin()) tag = '🧍 ' + tag;
-          if(r.rackets_requested > 0 && isAdmin()) tag = tag + ' 🎾' + r.rackets_requested;
           html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" onclick="openOverviewSlot('${slug}','${court.id}',${s})"><span class="tag">${tag}</span></div></div>`;
           i += span;
         } else {
@@ -2711,69 +2660,6 @@ async function markRefunded(id){
   toast('Označeno jako vráceno');
   await renderRefundsPending();
 }
-/* ================= TRŽBY PODLE OBDOBÍ ================= */
-function onRevenuePeriodChange(){
-  const period = document.getElementById('revenuePeriodSelect').value;
-  const custom = period === 'custom';
-  document.getElementById('revenueCustomFrom').style.display = custom ? '' : 'none';
-  document.getElementById('revenueCustomTo').style.display = custom ? '' : 'none';
-  renderRevenueBreakdown();
-}
-function revenuePeriodRange(){
-  const period = document.getElementById('revenuePeriodSelect').value;
-  const today = new Date();
-  if(period === 'custom'){
-    const from = document.getElementById('revenueFrom').value;
-    const to = document.getElementById('revenueTo').value;
-    return { from: from || toLocalISODate(today), to: to || toLocalISODate(today) };
-  }
-  if(period === 'last_30'){
-    const from = new Date(today); from.setDate(from.getDate()-30);
-    return { from: toLocalISODate(from), to: toLocalISODate(today) };
-  }
-  if(period === 'last_month'){
-    const firstThis = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastPrevMonth = new Date(firstThis.getTime() - 86400000);
-    const firstPrevMonth = new Date(lastPrevMonth.getFullYear(), lastPrevMonth.getMonth(), 1);
-    return { from: toLocalISODate(firstPrevMonth), to: toLocalISODate(lastPrevMonth) };
-  }
-  // this_month (výchozí)
-  const first = new Date(today.getFullYear(), today.getMonth(), 1);
-  return { from: toLocalISODate(first), to: toLocalISODate(today) };
-}
-async function renderRevenueBreakdown(){
-  const el = document.getElementById('revenueBreakdown');
-  if(!el) return;
-  el.innerHTML = 'Načítání…';
-  const { from, to } = revenuePeriodRange();
-
-  const { data: reservations, error: e1 } = await sb.from('reservations').select('venue_id, amount_due').eq('status','paid_confirmed').gte('date', from).lte('date', to);
-  if(e1){ el.innerHTML = 'Chyba: '+e1.message; return; }
-  const { data: barPayments, error: e2 } = await sb.from('onsite_bar_payments').select('amount').gte('transaction_date', from).lte('transaction_date', to);
-  if(e2){ el.innerHTML = 'Chyba: '+e2.message; return; }
-
-  const byVenue = {};
-  (reservations||[]).forEach(r=>{
-    const loc = Object.values(venuesConfig).find(v=>v.id===r.venue_id);
-    const name = loc ? loc.name : 'Neznámý areál';
-    if(!byVenue[name]) byVenue[name] = { count:0, sum:0 };
-    byVenue[name].count++; byVenue[name].sum += Number(r.amount_due||0);
-  });
-  const venueRows = Object.entries(byVenue).sort((a,b)=>b[1].sum-a[1].sum);
-  const venueTotal = venueRows.reduce((s,[,v])=>s+v.sum, 0);
-  const venueCount = venueRows.reduce((s,[,v])=>s+v.count, 0);
-  const barSum = (barPayments||[]).reduce((s,p)=>s+Number(p.amount||0),0);
-  const barCount = (barPayments||[]).length;
-
-  el.innerHTML = `
-    <table class="admin-table">
-      <tr><th>Areál</th><th>Počet rezervací</th><th>Tržba</th></tr>
-      ${venueRows.map(([name,v])=>`<tr><td>${name}</td><td>${v.count}</td><td>${v.sum} Kč</td></tr>`).join('') || `<tr><td colspan="3" style="padding:16px;color:#948e83;">Žádné zaplacené rezervace v tomto období</td></tr>`}
-      <tr style="font-weight:700;"><td>Rezervace celkem</td><td>${venueCount}</td><td>${venueTotal} Kč</td></tr>
-      <tr><td>🍹 Platby na baru (VS 406)</td><td>${barCount}</td><td>${barSum} Kč</td></tr>
-      <tr style="font-weight:700;border-top:2px solid var(--line);"><td>Tržba celkem</td><td>${venueCount+barCount}</td><td>${venueTotal+barSum} Kč</td></tr>
-    </table>`;
-}
 async function renderAdmin(){
   if(!isAdmin()){
     document.getElementById('view-admin').innerHTML = `<h1 class="page-title">Admin</h1><div class="empty-state"><div class="em-title">Přístup jen pro adminy</div>Přihlas se účtem s rolí admin (nastaví se přímo v tabulce member_profiles).</div>`;
@@ -2781,7 +2667,6 @@ async function renderAdmin(){
   }
   await renderAllVenuesOverview();
   renderCourtsManageTable();
-  renderRevenueBreakdown();
   const { data, error } = await sb.from('reservations').select('*').order('date',{ascending:false});
   if(error){ toast('Chyba: '+error.message); return; }
   adminReservationsCache = data;
@@ -2807,13 +2692,6 @@ async function renderAdmin(){
       return `<tr><td>${fmtDate(r.date)}</td><td>${loc?loc.name:'—'} · ${court?court.name:'—'}</td><td>${formatHour(r.start_hour)}–${formatHour(r.end_hour)}</td><td>${r.organizer_name||'—'}</td><td>${r.discount_applied} %</td><td>${r.amount_due} Kč</td></tr>`;
     }).join('')}
   ` : `<tr><td style="padding:16px;color:#948e83;">Žádné sólo tréninky za posledních 30 dní</td></tr>`;
-
-  const barCutoff = toLocalISODate(new Date(Date.now() - 30*86400000));
-  const { data: barPayments } = await sb.from('onsite_bar_payments').select('*').gte('transaction_date', barCutoff).order('transaction_date',{ascending:false});
-  document.getElementById('onsiteBarPaymentsTable').innerHTML = (barPayments && barPayments.length) ? `
-    <tr><th>Datum</th><th>Částka</th><th>Plátce</th><th>Zpráva</th></tr>
-    ${barPayments.map(p=>`<tr><td>${p.transaction_date}</td><td>${p.amount} Kč</td><td>${p.payer_name||'—'}</td><td>${p.message_for_recipient||'—'}</td></tr>`).join('')}
-  ` : `<tr><td style="padding:16px;color:#948e83;">Žádné platby na baru za posledních 30 dní</td></tr>`;
 
   document.getElementById('pendingTable').innerHTML = pending.length ? `
     <tr><th>Hřiště</th><th>Kurt</th><th>Datum</th><th>Čas</th><th>Kdo</th><th>Částka</th><th></th></tr>
@@ -2874,7 +2752,6 @@ function renderAdminTable(){
 async function adminConfirm(id){
   const res = await confirmPaymentCascade(id, session.user.email);
   if(!res){ toast('Chyba při potvrzování platby'); return; }
-  await sb.from('payment_audit_log').insert({club_id: CLUB_ID, reservation_id: id, action:'manual_confirm', detail: res.series_id ? 'Ručně potvrzena celá série' : 'Ručně potvrzena rezervace', performed_by: session.user.email});
   toast(res.series_id ? 'Celá série ručně potvrzena' : 'Rezervace ručně potvrzena');
   await renderAll();
 }
