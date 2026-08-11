@@ -1328,7 +1328,7 @@ async function renderGrid(){
         else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Obsazeno'; clickable = true; }
         else { cls='taken'; tag = canManageVenue(currentLocationId) ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; clickable = canManageVenue(currentLocationId); }
         if(r.is_solo_training && canManageVenue(currentLocationId)) tag = '🧍 ' + tag;
-        if(r.rackets_requested > 0 && canManageVenue(currentLocationId)) tag = tag + ' 🎾' + r.rackets_requested;
+        if(r.rackets_requested > 0 && canManageVenue(currentLocationId)) tag = tag + ' 🏓' + r.rackets_requested;
         html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" ${clickable?`onclick="openSlot('${court.id}',${s})"`:''}><span class="tag">${tag}</span></div></div>`;
         i += span;
       } else {
@@ -1576,6 +1576,7 @@ function openBookingModal({courtId, startHour, adminMode}){
   document.getElementById('repeatCheck').checked = false;
   document.getElementById('repeatBox').style.display = 'none';
   document.getElementById('seriesName').value = '';
+  document.getElementById('seriesName').dataset.autofilled = '0';
   const untilDefault = new Date(selectedDate+'T00:00:00'); untilDefault.setDate(untilDefault.getDate()+84);
   const minUntil = new Date(selectedDate+'T00:00:00'); minUntil.setDate(minUntil.getDate()+7);
   document.getElementById('seriesUntil').value = toLocalISODate(untilDefault);
@@ -1710,6 +1711,13 @@ function syncOrganizer(){
   const existingOrg = booking.players.find(p=>p.isOrganizer);
   if(existingOrg){ existingOrg.name = name || 'Organizátor'; existingOrg.discount = discount; }
   else booking.players.unshift({name: name || 'Organizátor', discount, isOrganizer:true});
+  // Ať appka nežádá jméno hráče a název série zvlášť — předvyplní se automaticky
+  // (jméno hráče + "— pravidelně"), a jde to kdykoliv ručně přepsat na cokoliv jiného.
+  const seriesNameEl = document.getElementById('seriesName');
+  if(seriesNameEl && name && (!seriesNameEl.value || seriesNameEl.dataset.autofilled === '1')){
+    seriesNameEl.value = name + ' — pravidelně';
+    seriesNameEl.dataset.autofilled = '1';
+  }
   updatePriceBox();
 }
 function renderPlayersList(){
@@ -1944,6 +1952,7 @@ async function confirmBookingRecurring(){
   const { data: inserted, error } = await sb.from('reservations').insert(rows).select();
   if(error){ toast(friendlyReservationError(error)); await renderGrid(); return; }
 
+  const pendingOnes = inserted.filter(r=>r.status==='pending_payment');
   if(pendingOnes.length){
     if(booking.adminMode){
       // Admin: rezervace na jednotlivé skupiny — každý termín může admin potvrdit/zrušit zvlášť v Adminu.
@@ -2326,7 +2335,7 @@ async function openAdminSlotModal(courtId, hour, existing){
         ${existing.organizer_phone ? `<div class="price-row"><span>Telefon</span><span><a href="tel:${existing.organizer_phone}" style="color:var(--green);font-weight:600;">${existing.organizer_phone}</a></span></div>` : ''}
         <div class="price-row"><span>Čas</span><span>${formatHour(existing.start_hour)}–${formatHour(existing.end_hour)}</span></div>
         <div class="price-row"><span>Stav</span><span>${statusLabel}</span></div>
-        ${existing.rackets_requested > 0 ? `<div class="price-row"><span>Rakety</span><span><b>🎾 ${existing.rackets_requested}×</b> (${existing.rackets_price} Kč v ceně)</span></div>` : ''}
+        ${existing.rackets_requested > 0 ? `<div class="price-row"><span>Rakety</span><span><b>🏓 ${existing.rackets_requested}×</b> (${existing.rackets_price} Kč v ceně)</span></div>` : ''}
         ${seriesRangeHtml}
         ${existing.admin_note ? `<div class="price-row"><span>Poznámka</span><span>${existing.admin_note}</span></div>` : ''}
       </div>
@@ -2614,7 +2623,7 @@ function buildAllVenuesGridsHtml(allRes){
           else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Obsazeno'; }
           else { cls='taken'; tag = isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; }
           if(r.is_solo_training && isAdmin()) tag = '🧍 ' + tag;
-          if(r.rackets_requested > 0 && isAdmin()) tag = tag + ' 🎾' + r.rackets_requested;
+          if(r.rackets_requested > 0 && isAdmin()) tag = tag + ' 🏓' + r.rackets_requested;
           html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" onclick="openOverviewSlot('${slug}','${court.id}',${s})"><span class="tag">${tag}</span></div></div>`;
           i += span;
         } else {
