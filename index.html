@@ -142,7 +142,9 @@
   .week-mini .court-label small{display:none;}
   .week-mini .slot{height:26px;margin:1px;border-radius:3px;}
   .week-mini .slot.spanning{margin:1px;height:calc(100% - 2px);}
-  .week-mini .slot .tag{display:block;font-size:6.5px;font-weight:600;line-height:1.15;padding:0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:none;letter-spacing:0;}
+  .week-mini .slot .tag{display:flex;align-items:center;gap:2px;font-size:6.5px;font-weight:600;line-height:1.15;padding:0 3px;text-transform:none;letter-spacing:0;overflow:hidden;}
+  .week-mini .slot .tag-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  .week-mini .slot .tag-rackets{flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:1px;}
 
 
   .legend{display:flex;gap:18px;margin-top:14px;flex-wrap:wrap;font-size:13px;color:#5c574e;}
@@ -228,8 +230,11 @@
     #reservationsAllVenuesGrids .cell, #adminOverviewGrids .cell{min-width:0;}
     #reservationsAllVenuesGrids .court-label, #adminOverviewGrids .court-label{padding:8px 6px;font-size:10px;min-width:0;}
     #reservationsAllVenuesGrids .court-label small, #adminOverviewGrids .court-label small{display:none;}
-    #reservationsAllVenuesGrids .slot .tag, #adminOverviewGrids .slot .tag{font-size:7px;padding:0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #reservationsAllVenuesGrids .slot .tag, #adminOverviewGrids .slot .tag{font-size:7px;padding:0 2px;display:flex;align-items:center;gap:2px;overflow:hidden;}
   }
+  /* Jméno se může zkrátit třemi tečkami, odznak raket (ikona + počet) se nikdy neuřízne */
+  .slot .tag-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  .slot .tag-rackets{flex-shrink:0;white-space:nowrap;display:inline-flex;align-items:center;gap:1px;}
 </style>
 </head>
 <body>
@@ -1383,11 +1388,10 @@ function buildMiniDayGridHtml(loc, dateStr, dayReservations){
         else if(Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Zdarma'; }
         let titleText = tag; // prostý text bez HTML — jde do title="", který HTML značky nesmí obsahovat
         if(r.is_solo_training){ tag = '🧍 ' + tag; titleText = '🧍 ' + titleText; }
-        if(r.rackets_requested > 0){
-          tag = tag + ` <img src="${RACKET_ICON}" style="width:11px;height:11px;vertical-align:-2px;">` + r.rackets_requested;
-          titleText = titleText + ` (${r.rackets_requested}× rakety)`;
-        }
-        html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" title="${titleText} (klikni pro úpravu)" onclick="openWeekSlotEdit('${dateStr}','${court.id}',${s})"><span class="tag">${tag}</span></div></div>`;
+        const racketsBadge = r.rackets_requested > 0
+          ? `<span class="tag-rackets"><img src="${RACKET_ICON}" style="width:11px;height:11px;">${r.rackets_requested}</span>` : '';
+        if(r.rackets_requested > 0) titleText = titleText + ` (${r.rackets_requested}× rakety)`;
+        html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" title="${titleText} (klikni pro úpravu)" onclick="openWeekSlotEdit('${dateStr}','${court.id}',${s})"><span class="tag"><span class="tag-name">${tag}</span>${racketsBadge}</span></div></div>`;
         i += span;
       } else {
         html += `<div class="cell"><div class="slot free" title="Vytvořit rezervaci" onclick="openWeekSlotEdit('${dateStr}','${court.id}',${s})"></div></div>`;
@@ -2630,8 +2634,9 @@ function buildAllVenuesGridsHtml(allRes){
           else if(isAdmin() && Number(r.amount_due)===0 && r.status==='paid_confirmed'){ cls='freebie'; tag = r.organizer_name || 'Obsazeno'; }
           else { cls='taken'; tag = isAdmin() ? (r.organizer_name || 'Obsazeno') : 'Obsazeno'; }
           if(r.is_solo_training && isAdmin()) tag = '🧍 ' + tag;
-          if(r.rackets_requested > 0 && isAdmin()) tag = tag + ` <img src="${RACKET_ICON}" style="width:12px;height:12px;vertical-align:-2px;">` + r.rackets_requested;
-          html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" onclick="openOverviewSlot('${slug}','${court.id}',${s})"><span class="tag">${tag}</span></div></div>`;
+          const racketsBadge = (r.rackets_requested > 0 && isAdmin())
+            ? `<span class="tag-rackets"><img src="${RACKET_ICON}" style="width:12px;height:12px;">${r.rackets_requested}</span>` : '';
+          html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" onclick="openOverviewSlot('${slug}','${court.id}',${s})"><span class="tag"><span class="tag-name">${tag}</span>${racketsBadge}</span></div></div>`;
           i += span;
         } else {
           html += `<div class="cell"><div class="slot free" onclick="openOverviewSlot('${slug}','${court.id}',${s})"></div></div>`;
