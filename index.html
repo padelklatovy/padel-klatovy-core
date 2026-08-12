@@ -136,6 +136,9 @@
   .week-day-title{font-family:var(--font-head);font-weight:700;font-size:13px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;gap:8px;}
   .week-day-title:hover{text-decoration:underline;}
   .week-day-title .wd-today{background:var(--red);color:#fff;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;}
+  .week-venue-title{font-family:var(--font-head);font-weight:600;font-size:11px;color:#5c574e;margin:8px 0 4px;cursor:pointer;}
+  .week-venue-title:hover{text-decoration:underline;}
+  .week-venue-title:first-of-type{margin-top:2px;}
   .week-mini .grid-row{column-gap:1px;margin-bottom:1px;}
   .week-mini .hcell{font-size:6px;padding:2px 0 1px 1px;min-width:15px;}
   .week-mini .cell{min-width:15px;}
@@ -345,8 +348,8 @@
   </section>
 
   <section class="view" id="view-weekview">
-    <h1 class="page-title">Týdenní přehled — Padel Klatovy</h1>
-    <p class="page-sub">Pondělí–neděle, zmenšený náhled. Zatím jen tento areál (na zkoušku).</p>
+    <h1 class="page-title">Týdenní přehled — všechny areály</h1>
+    <p class="page-sub">Pondělí–neděle, zmenšený náhled, všechny areály.</p>
     <div class="date-bar">
       <div class="date-nav"><button class="icon-btn" id="adminWeekPrev">‹</button><button class="icon-btn" id="adminWeekNext">›</button></div>
       <div class="date-label" id="adminWeekLabel"></div>
@@ -1364,7 +1367,7 @@ async function toggleWeekView(){
   document.getElementById('weekViewToggleBtn').textContent = weekViewActive ? '📆 Zpět na den' : '📅 Celý týden';
   if(weekViewActive) await renderWeekGrid();
 }
-function buildMiniDayGridHtml(loc, dateStr, dayReservations){
+function buildMiniDayGridHtml(loc, slug, dateStr, dayReservations){
   const starts = slotStarts(loc);
   let html = `<div class="grid-row" style="grid-template-columns:110px repeat(${starts.length},minmax(15px,1fr));"><div class="cell court-label" style="border-radius:0;"></div>`;
   starts.forEach(s => html += `<div class="hcell ${s%1!==0?'half':''}">${s%1!==0?'':formatHour(s)}</div>`);
@@ -1391,10 +1394,10 @@ function buildMiniDayGridHtml(loc, dateStr, dayReservations){
         const racketsBadge = r.rackets_requested > 0
           ? `<span class="tag-rackets"><img src="${RACKET_ICON}" style="width:11px;height:11px;">${r.rackets_requested}</span>` : '';
         if(r.rackets_requested > 0) titleText = titleText + ` (${r.rackets_requested}× rakety)`;
-        html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" title="${titleText} (klikni pro úpravu)" onclick="openWeekSlotEdit('${dateStr}','${court.id}',${s})"><span class="tag"><span class="tag-name">${tag}</span>${racketsBadge}</span></div></div>`;
+        html += `<div class="cell" style="grid-column: span ${span};"><div class="slot ${cls} spanning" title="${titleText} (klikni pro úpravu)" onclick="openWeekSlotEdit('${slug}','${dateStr}','${court.id}',${s})"><span class="tag"><span class="tag-name">${tag}</span>${racketsBadge}</span></div></div>`;
         i += span;
       } else {
-        html += `<div class="cell"><div class="slot free" title="Vytvořit rezervaci" onclick="openWeekSlotEdit('${dateStr}','${court.id}',${s})"></div></div>`;
+        html += `<div class="cell"><div class="slot free" title="Vytvořit rezervaci" onclick="openWeekSlotEdit('${slug}','${dateStr}','${court.id}',${s})"></div></div>`;
         i += 1;
       }
     }
@@ -1402,17 +1405,17 @@ function buildMiniDayGridHtml(loc, dateStr, dayReservations){
   });
   return html;
 }
-function goToKlatovyDay(dateStr){
-  currentLocationId = 'padel-klatovy';
+function goToVenueDay(slug, dateStr){
+  currentLocationId = slug;
   selectedDate = dateStr;
   switchView('reservations');
-  selectProduct('padel-klatovy');
+  selectProduct(slug);
 }
-async function openWeekSlotEdit(dateStr, courtId, startHour){
-  currentLocationId = 'padel-klatovy';
+async function openWeekSlotEdit(slug, dateStr, courtId, startHour){
+  currentLocationId = slug;
   selectedDate = dateStr;
   switchView('reservations');
-  await selectProduct('padel-klatovy'); // dotáhne gridReservations pro daný den
+  await selectProduct(slug); // dotáhne gridReservations pro daný den
   const existing = findReservationAt(courtId, startHour);
   openAdminSlotModal(courtId, startHour, existing);
 }
@@ -1436,7 +1439,7 @@ async function renderWeekGrid(){
         ${dayNamesLong[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.
         ${dateStr===today ? '<span class="wd-today">DNES</span>' : ''}
       </div>
-      <div class="week-mini grid-scroll"><div class="court-grid">${buildMiniDayGridHtml(loc, dateStr, dayRes)}</div></div>
+      <div class="week-mini grid-scroll"><div class="court-grid">${buildMiniDayGridHtml(loc, currentLocationId, dateStr, dayRes)}</div></div>
     </div>`;
   }
   wrap.innerHTML = html;
@@ -1453,12 +1456,13 @@ async function renderAdminWeekGrid(){
   const wrap = document.getElementById('adminWeekGridContent');
   if(!wrap || !isAdmin()) return;
   wrap.innerHTML = 'Načítání…';
-  const loc = venuesConfig['padel-klatovy'];
-  if(!loc){ wrap.innerHTML = 'Areál Padel Klatovy nenalezen.'; return; }
+  const slugs = orderedVenueSlugs().filter(s=>venuesConfig[s] && venuesConfig[s].isVisible);
+  if(!slugs.length){ wrap.innerHTML = 'Žádný viditelný areál nenalezen.'; return; }
   const weekStart = getWeekStart(adminWeekAnchorDate);
   const weekEnd = toLocalISODate(new Date(new Date(weekStart+'T00:00:00').getTime() + 6*86400000));
   document.getElementById('adminWeekLabel').textContent = `${fmtDate(weekStart)} – ${fmtDate(weekEnd)}`;
-  const { data, error } = await sb.from('reservations').select('*').eq('venue_id', loc.id).gte('date', weekStart).lte('date', weekEnd);
+  const venueIds = slugs.map(s=>venuesConfig[s].id);
+  const { data, error } = await sb.from('reservations').select('*').in('venue_id', venueIds).gte('date', weekStart).lte('date', weekEnd);
   if(error){ wrap.innerHTML = `Chyba načítání: ${error.message}`; return; }
   const dayNamesLong = ['Neděle','Pondělí','Úterý','Středa','Čtvrtek','Pátek','Sobota'];
   const today = todayISO();
@@ -1466,14 +1470,18 @@ async function renderAdminWeekGrid(){
   for(let i=0;i<7;i++){
     const d = new Date(weekStart+'T00:00:00'); d.setDate(d.getDate()+i);
     const dateStr = toLocalISODate(d);
-    const dayRes = data.filter(r=>r.date===dateStr);
     html += `<div class="week-day-block">
-      <div class="week-day-title" onclick="goToKlatovyDay('${dateStr}')">
+      <div class="week-day-title" style="cursor:default;">
         ${dayNamesLong[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.
         ${dateStr===today ? '<span class="wd-today">DNES</span>' : ''}
-      </div>
-      <div class="week-mini grid-scroll"><div class="court-grid">${buildMiniDayGridHtml(loc, dateStr, dayRes)}</div></div>
-    </div>`;
+      </div>`;
+    slugs.forEach(slug=>{
+      const loc = venuesConfig[slug];
+      const dayRes = data.filter(r=>r.venue_id===loc.id && r.date===dateStr);
+      html += `<div class="week-venue-title" onclick="goToVenueDay('${slug}','${dateStr}')">${loc.name}</div>
+        <div class="week-mini grid-scroll"><div class="court-grid">${buildMiniDayGridHtml(loc, slug, dateStr, dayRes)}</div></div>`;
+    });
+    html += `</div>`;
   }
   wrap.innerHTML = html;
   scrollWeekMiniToEnd(wrap);
