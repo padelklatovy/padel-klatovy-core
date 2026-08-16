@@ -1112,7 +1112,7 @@ function renderHeader(){
   document.getElementById('allVenuesToggleBtn').style.display = isAdmin() ? '' : 'none';
   document.querySelectorAll('.legend-admin-only').forEach(el=>{ el.style.display = isAdmin() ? '' : 'none'; });
   document.getElementById('dashboardTab').style.display = isAdmin() ? '' : 'none';
-  document.getElementById('weekTab').style.display = isAdmin() ? '' : 'none';
+  document.getElementById('weekTab').style.display = (isAdmin() || (profile && profile.role==='recepce')) ? '' : 'none';
 }
 function toggleProfileMenu(e){ e.stopPropagation(); document.getElementById('profileMenu').classList.toggle('show'); }
 async function goToCreateEvent(){
@@ -1454,9 +1454,14 @@ function scrollWeekMiniToEnd(wrap){
 let adminWeekAnchorDate = todayISO();
 async function renderAdminWeekGrid(){
   const wrap = document.getElementById('adminWeekGridContent');
-  if(!wrap || !isAdmin()) return;
+  const isRecepce = profile && profile.role==='recepce';
+  if(!wrap || !(isAdmin() || isRecepce)) return;
   wrap.innerHTML = 'Načítání…';
-  const slugs = orderedVenueSlugs().filter(s=>venuesConfig[s] && venuesConfig[s].isVisible);
+  let slugs = orderedVenueSlugs().filter(s=>venuesConfig[s] && venuesConfig[s].isVisible);
+  if(!isAdmin() && isRecepce){
+    // recepce vidí Týden jen za svůj vlastní areál, stejně jako všude jinde v appce
+    slugs = slugs.filter(s=>venuesConfig[s].id === profile.scoped_venue_id);
+  }
   if(!slugs.length){ wrap.innerHTML = 'Žádný viditelný areál nenalezen.'; return; }
   const weekStart = getWeekStart(adminWeekAnchorDate);
   const weekEnd = toLocalISODate(new Date(new Date(weekStart+'T00:00:00').getTime() + 6*86400000));
