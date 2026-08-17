@@ -3077,6 +3077,7 @@ async function uploadEventImage(fileInput, urlFieldId, previewId){
   toast('Obrázek nahrán');
 }
 async function createEvent(){
+ try {
   const name = document.getElementById('eventName').value.trim();
   const category = document.getElementById('eventCategory').value;
   const date = document.getElementById('eventDate').value;
@@ -3132,6 +3133,10 @@ async function createEvent(){
   document.getElementById('eventLocation').value='';
   toast(blocksCourt ? `Akce „${name}" založena — v Kalendáři i Rezervacích` : `Akce „${name}" založena v Kalendáři`);
   await renderAll();
+ } catch(e) {
+  console.error('createEvent selhalo:', e);
+  toast('Nastala neočekávaná chyba při zakládání akce: ' + (e && e.message ? e.message : String(e)));
+ }
 }
 
 /* ================= ADMIN: ČLENOVÉ (skutečná tabulka) ================= */
