@@ -411,6 +411,7 @@
       </div>
 
       <button class="btn btn-dark" style="margin-top:14px;" onclick="createEvent()">Založit akci</button>
+      <div id="createEventStatus" style="display:none;margin-top:10px;padding:10px 14px;border-radius:8px;font-size:14px;font-weight:600;"></div>
     </div>
 
     <div class="section-title">Obsazenost všech hřišť</div>
@@ -3077,7 +3078,17 @@ async function uploadEventImage(fileInput, urlFieldId, previewId){
   toast('Obrázek nahrán');
 }
 async function createEvent(){
+ const statusEl = document.getElementById('createEventStatus');
+ const showStatus = (msg, isError) => {
+   if(!statusEl) return;
+   statusEl.textContent = msg;
+   statusEl.style.display = '';
+   statusEl.style.background = isError ? '#FDECEC' : '#E8F5E9';
+   statusEl.style.color = isError ? '#B00020' : '#1B5E20';
+   statusEl.style.border = '1px solid ' + (isError ? '#F5B5B5' : '#A5D6A7');
+ };
  try {
+  if(statusEl){ statusEl.style.display='none'; }
   const name = document.getElementById('eventName').value.trim();
   const category = document.getElementById('eventCategory').value;
   const date = document.getElementById('eventDate').value;
@@ -3095,8 +3106,8 @@ async function createEvent(){
   const descLong = document.getElementById('eventDescLong').value.trim();
   const imageUrl = document.getElementById('eventImageUrl').value.trim();
 
-  if(!name || !date || to<=from){ toast('Vyplň název, datum a platný časový rozsah'); return; }
-  if(blocksCourt && !courtId){ toast('Vyber kurt, nebo odškrtni blokaci kurtu'); return; }
+  if(!name || !date || to<=from){ showStatus('⚠️ Vyplň název, datum a platný časový rozsah (Do musí být později než Od).', true); return; }
+  if(blocksCourt && !courtId){ showStatus('⚠️ Vyber kurt, nebo odškrtni blokaci kurtu.', true); return; }
 
   const toTime = h => String(Math.floor(h)).padStart(2,'0') + ':' + String(Math.round((h-Math.floor(h))*60)).padStart(2,'0') + ':00';
   const court = blocksCourt ? findCourt(courtId) : null;
@@ -3109,7 +3120,7 @@ async function createEvent(){
     capacity, price: priceVal, price_mode: priceMode, is_free: priceVal === 0,
     status: 'otevreno', visibility: 'verejne', organizer: session.user.email
   }).select().single();
-  if(evErr){ toast('Chyba při zakládání akce: '+evErr.message); return; }
+  if(evErr){ showStatus('❌ Chyba při zakládání akce: '+evErr.message, true); return; }
 
   if(blocksCourt){
     const { error } = await sb.from('reservations').insert({
@@ -3118,7 +3129,7 @@ async function createEvent(){
       type:'club_event', status:'club_blocked', event_name:name, created_by: session.user.email,
       source_event_id: ev.id
     });
-    if(error){ toast('Akce v Kalendáři založena, ale blokace kurtu selhala: '+error.message); return; }
+    if(error){ showStatus('⚠️ Akce v Kalendáři založena, ale blokace kurtu selhala: '+error.message, true); return; }
   }
 
   document.getElementById('eventName').value='';
@@ -3131,11 +3142,12 @@ async function createEvent(){
   document.getElementById('eventPrice').value='';
   document.getElementById('eventPriceMode').value='osoba';
   document.getElementById('eventLocation').value='';
-  toast(blocksCourt ? `Akce „${name}" založena — v Kalendáři i Rezervacích` : `Akce „${name}" založena v Kalendáři`);
+  showStatus(blocksCourt ? `✅ Akce „${name}" založena — v Kalendáři i Rezervacích` : `✅ Akce „${name}" založena v Kalendáři`, false);
+  toast('Akce založena');
   await renderAll();
  } catch(e) {
   console.error('createEvent selhalo:', e);
-  toast('Nastala neočekávaná chyba při zakládání akce: ' + (e && e.message ? e.message : String(e)));
+  showStatus('❌ Nastala neočekávaná chyba při zakládání akce: ' + (e && e.message ? e.message : String(e)), true);
  }
 }
 
