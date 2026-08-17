@@ -410,7 +410,7 @@
         <div class="field" style="min-width:200px;margin:0;"><label>Kurt</label><select id="eventCourt"></select></div>
       </div>
 
-      <button class="btn btn-dark" style="margin-top:14px;" onclick="createEvent()">Založit akci</button>
+      <button class="btn btn-dark" style="margin-top:14px;" onclick="createClubEvent()">Založit akci</button>
       <div id="createEventStatus" style="display:none;margin-top:10px;padding:10px 14px;border-radius:8px;font-size:14px;font-weight:600;"></div>
     </div>
 
@@ -3077,7 +3077,7 @@ async function uploadEventImage(fileInput, urlFieldId, previewId){
   if(preview){ preview.src = pub.publicUrl; preview.style.display = ''; }
   toast('Obrázek nahrán');
 }
-async function createEvent(){
+async function createClubEvent(){
  const statusEl = document.getElementById('createEventStatus');
  const showStatus = (msg, isError) => {
    if(!statusEl) return;
