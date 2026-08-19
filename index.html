@@ -812,6 +812,12 @@
     <h2 id="registrantsEventName">Přihlášení</h2>
     <p class="modal-sub">Kdo se přihlásil a stav platby.</p>
     <div id="eventRegistrantsContent"></div>
+    <div class="section-title" style="margin-top:18px;">Přihlásit někoho ručně</div>
+    <div class="field"><label>Jméno</label><input id="manualRegName" placeholder="Jana Nováková"></div>
+    <div class="field"><label>Telefon (volitelné)</label><input id="manualRegPhone" placeholder="+420 600 000 000"></div>
+    <div class="field" id="manualRegPartnerRow" style="display:none;"><label>Jméno spoluhráče/dvojice</label><input id="manualRegPartnerName" placeholder="Petr Novák"></div>
+    <div class="checkbox-row"><input type="checkbox" id="manualRegPaid" checked><label for="manualRegPaid">Rovnou označit jako zaplaceno</label></div>
+    <button class="btn btn-dark" style="width:100%;margin-top:8px;" onclick="manualRegisterForEvent()">Přihlásit</button>
   </div>
 </div>
 
@@ -2225,8 +2231,15 @@ async function renderCalendar(){
   }).join('');
 }
 const CATEGORY_LABELS = { turnaj:'Turnaj', prednaska:'Přednáška', social:'Social', cviceni:'Cvičení', jine:'Akce' };
+let activeAdminRegEvent = null;
 async function openEventRegistrantsModal(ev){
+  activeAdminRegEvent = ev;
   document.getElementById('registrantsEventName').textContent = 'Přihlášení — ' + ev.name;
+  document.getElementById('manualRegName').value = '';
+  document.getElementById('manualRegPhone').value = '';
+  document.getElementById('manualRegPartnerName').value = '';
+  document.getElementById('manualRegPartnerRow').style.display = ev.price_mode==='dvojice' ? '' : 'none';
+  document.getElementById('manualRegPaid').checked = true;
   const box = document.getElementById('eventRegistrantsContent');
   box.innerHTML = 'Načítání…';
   showModal('eventRegistrantsOverlay');
@@ -2234,17 +2247,48 @@ async function openEventRegistrantsModal(ev){
     .eq('event_id', ev.id).in('status', ['pending_payment','paid_confirmed']).order('created_at');
   if(error){ box.innerHTML = emptyState('Chyba', error.message); return; }
   if(!regs || !regs.length){ box.innerHTML = emptyState('Zatím nikdo', 'Ještě se nikdo nepřihlásil.'); return; }
-  const memberIds = [...new Set(regs.map(r=>r.member_id))];
+  const memberIds = [...new Set(regs.map(r=>r.member_id).filter(Boolean))];
   const { data: profiles } = await sb.from('member_profiles').select('user_id, full_name, phone').in('user_id', memberIds);
   const profileById = {};
   (profiles||[]).forEach(p=>{ profileById[p.user_id] = p; });
   box.innerHTML = `<table class="admin-table"><thead><tr><th>Jméno</th><th>Telefon</th><th>Spoluhráč</th><th>Cena</th><th>Stav</th></tr></thead><tbody>
     ${regs.map(r=>{
-      const p = profileById[r.member_id];
+      const p = r.member_id ? profileById[r.member_id] : null;
+      const name = p?.full_name || r.participant_name || '—';
+      const phone = p?.phone || r.participant_phone || '—';
       const statusHtml = r.status==='paid_confirmed' ? '<span class="status-pill paid">Zaplaceno</span>' : '<span class="status-pill pending">Čeká na platbu</span>';
-      return `<tr><td>${p?.full_name || '—'}</td><td>${p?.phone || '—'}</td><td>${r.partner_name || '—'}</td><td>${r.amount_due} Kč</td><td>${statusHtml}</td></tr>`;
+      return `<tr><td>${name}${!p?' <small style="color:#948e83;">(bez účtu)</small>':''}</td><td>${phone}</td><td>${r.partner_name || '—'}</td><td>${r.amount_due} Kč</td><td>${statusHtml}</td></tr>`;
     }).join('')}
   </tbody></table>`;
+}
+async function manualRegisterForEvent(){
+  const ev = activeAdminRegEvent;
+  if(!ev) return;
+  const name = document.getElementById('manualRegName').value.trim();
+  const phone = document.getElementById('manualRegPhone').value.trim();
+  const partnerName = ev.price_mode==='dvojice' ? document.getElementById('manualRegPartnerName').value.trim() : null;
+  if(!name){ toast('Vyplň jméno'); return; }
+  if(ev.price_mode==='dvojice' && !partnerName){ toast('Vyplň jméno spoluhráče/dvojice'); return; }
+  const markPaid = document.getElementById('manualRegPaid').checked;
+  const rawPrice = ev.is_free ? 0 : Number(ev.price)||0;
+
+  const { data: reg, error } = await sb.from('event_registrations').insert({
+    club_id: CLUB_ID, event_id: ev.id, member_id: null,
+    participant_name: name, participant_phone: phone || null, partner_name: partnerName,
+    amount_due: rawPrice, status: markPaid ? 'paid_confirmed' : 'pending_payment',
+    paid_at: markPaid ? new Date().toISOString() : null,
+    registered_by: session.user.email
+  }).select().single();
+  if(error){ toast('Chyba při přihlašování: '+error.message); return; }
+  await sb.from('payments').insert({
+    club_id: CLUB_ID, event_registration_id: reg.id, amount: rawPrice, variable_symbol: genVS(),
+    status: markPaid ? 'manually_confirmed' : 'created',
+    paid_at: markPaid ? new Date().toISOString() : null,
+    confirmed_by: markPaid ? session.user.email : null
+  });
+  toast(`${name} přihlášen(a) na akci`);
+  await openEventRegistrantsModal(ev);
+  await renderCalendar();
 }
 
 function openEventSignupModal(ev){
