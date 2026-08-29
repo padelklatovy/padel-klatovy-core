@@ -414,6 +414,54 @@
       <div id="createEventStatus" style="display:none;margin-top:10px;padding:10px 14px;border-radius:8px;font-size:14px;font-weight:600;"></div>
     </div>
 
+    <div class="section-title">Členové</div>
+    <p class="page-sub" style="margin-top:-6px;">Skutečná tabulka <code>member_profiles</code>. Slevu edituje jen admin zde.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+      <div class="field" style="max-width:320px;margin:0;"><label style="font-size:12px;">Hledat</label><input id="memberSearch" placeholder="Jméno, e-mail, poznámka..." oninput="paintMembersTable()"></div>
+      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Úroveň / role</label>
+        <select id="memberFilterTier" onchange="paintMembersTable()">
+          <option value="all">Všichni</option>
+          <option value="admin">Jen Admin</option>
+          <option value="recepce">Jen Recepce</option>
+          <option value="trener">Jen Trenér</option>
+          <option value="clen">Jen Člen (20 %)</option>
+          <option value="none">Jen Nečlen</option>
+        </select>
+      </div>
+      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Aktivita</label>
+        <select id="memberFilterActivity" onchange="paintMembersTable()">
+          <option value="all">Všichni</option>
+          <option value="has_bookings">Mají alespoň 1 rezervaci</option>
+          <option value="no_bookings">Bez rezervace</option>
+          <option value="has_revenue">S tržbou &gt; 0 Kč</option>
+        </select>
+      </div>
+      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Hráčská úroveň</label>
+        <select id="memberFilterLevel" onchange="paintMembersTable()">
+          <option value="all">Všechny</option>
+          <option value="D2">D2 — Začátečník</option>
+          <option value="D1">D1 — Mírně pokročilý začátečník</option>
+          <option value="C2">C2 — Pokročilý začátečník</option>
+          <option value="C1">C1 — Středně pokročilý</option>
+          <option value="B2">B2 — Pokročilý klubový hráč</option>
+          <option value="B1">B1 — Velmi pokročilý</option>
+          <option value="A">A — Výkonnostní / závodní hráč</option>
+          <option value="none">Nevyplněno</option>
+        </select>
+      </div>
+      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Areál</label>
+        <select id="memberFilterVenue" onchange="paintMembersTable()">
+          <option value="all">Všechny areály</option>
+          <option value="padel-klatovy">Padel Klatovy</option>
+          <option value="beachvolley-klatovy">Beachvolejbal Klatovy</option>
+          <option value="padel-brandys">Padel Brandýs</option>
+        </select>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('memberSearch').value='';document.getElementById('memberFilterTier').value='all';document.getElementById('memberFilterActivity').value='all';document.getElementById('memberFilterLevel').value='all';document.getElementById('memberFilterVenue').value='all';paintMembersTable()">Zrušit filtry</button>
+    </div>
+    <p id="memberFilterCount" style="font-size:12px;color:#6E6E6E;margin:8px 0 0;"></p>
+    <table class="admin-table" id="membersTable" style="margin-top:12px;"></table>
+
     <div class="section-title">Obsazenost všech hřišť</div>
     <div class="date-bar">
       <div class="date-nav"><button class="icon-btn" id="overviewPrevDay">‹</button><button class="icon-btn" id="overviewNextDay">›</button></div>
@@ -472,53 +520,6 @@
     <div class="section-title">Čeká na vrácení peněz</div>
     <p class="page-sub" style="margin-top:-6px;">Zaplacené rezervace, které byly zrušené — peníze zůstaly na účtu, dokud je ručně nepošleš zpátky a neoznačíš jako vyřešené.</p>
     <table class="admin-table" id="refundsTable"></table>
-    <div class="section-title">Členové</div>
-    <p class="page-sub" style="margin-top:-6px;">Skutečná tabulka <code>member_profiles</code>. Slevu edituje jen admin zde.</p>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
-      <div class="field" style="max-width:320px;margin:0;"><label style="font-size:12px;">Hledat</label><input id="memberSearch" placeholder="Jméno, e-mail, poznámka..." oninput="paintMembersTable()"></div>
-      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Úroveň / role</label>
-        <select id="memberFilterTier" onchange="paintMembersTable()">
-          <option value="all">Všichni</option>
-          <option value="admin">Jen Admin</option>
-          <option value="recepce">Jen Recepce</option>
-          <option value="trener">Jen Trenér</option>
-          <option value="clen">Jen Člen (20 %)</option>
-          <option value="none">Jen Nečlen</option>
-        </select>
-      </div>
-      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Aktivita</label>
-        <select id="memberFilterActivity" onchange="paintMembersTable()">
-          <option value="all">Všichni</option>
-          <option value="has_bookings">Mají alespoň 1 rezervaci</option>
-          <option value="no_bookings">Bez rezervace</option>
-          <option value="has_revenue">S tržbou &gt; 0 Kč</option>
-        </select>
-      </div>
-      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Hráčská úroveň</label>
-        <select id="memberFilterLevel" onchange="paintMembersTable()">
-          <option value="all">Všechny</option>
-          <option value="D2">D2 — Začátečník</option>
-          <option value="D1">D1 — Mírně pokročilý začátečník</option>
-          <option value="C2">C2 — Pokročilý začátečník</option>
-          <option value="C1">C1 — Středně pokročilý</option>
-          <option value="B2">B2 — Pokročilý klubový hráč</option>
-          <option value="B1">B1 — Velmi pokročilý</option>
-          <option value="A">A — Výkonnostní / závodní hráč</option>
-          <option value="none">Nevyplněno</option>
-        </select>
-      </div>
-      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Areál</label>
-        <select id="memberFilterVenue" onchange="paintMembersTable()">
-          <option value="all">Všechny areály</option>
-          <option value="padel-klatovy">Padel Klatovy</option>
-          <option value="beachvolley-klatovy">Beachvolejbal Klatovy</option>
-          <option value="padel-brandys">Padel Brandýs</option>
-        </select>
-      </div>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('memberSearch').value='';document.getElementById('memberFilterTier').value='all';document.getElementById('memberFilterActivity').value='all';document.getElementById('memberFilterLevel').value='all';document.getElementById('memberFilterVenue').value='all';paintMembersTable()">Zrušit filtry</button>
-    </div>
-    <p id="memberFilterCount" style="font-size:12px;color:#6E6E6E;margin:8px 0 0;"></p>
-    <table class="admin-table" id="membersTable" style="margin-top:12px;"></table>
 
     <div class="section-title">Předplacená členství</div>
     <p class="page-sub" style="margin-top:-6px;">Někdo zaplatil členství mimo appku (hotově, převodem)? Zapiš jeho e-mail sem — až se v appce zaregistruje, automaticky dostane správnou slevu.</p>
