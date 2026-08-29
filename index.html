@@ -37,6 +37,9 @@
   ::selection{background:var(--red);color:#fff;}
 
   header.app-header{position:sticky;top:0;z-index:50;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;padding-top:calc(14px + env(safe-area-inset-top));padding-left:calc(20px + env(safe-area-inset-left));padding-right:calc(20px + env(safe-area-inset-right));border-bottom:4px solid var(--red);}
+  .admin-subnav{position:sticky;top:var(--header-h,60px);z-index:40;display:flex;gap:6px;overflow-x:auto;background:var(--paper);padding:10px 0 14px;margin-bottom:6px;border-bottom:1px solid var(--line);}
+  .admin-subnav button{flex:none;background:var(--paper-dim);border:1px solid var(--line);border-radius:100px;padding:7px 14px;font-family:var(--font-head);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.2px;cursor:pointer;color:var(--ink);white-space:nowrap;}
+  .admin-subnav button:hover{background:var(--ink);color:#fff;}
   .brand{display:flex;align-items:center;gap:10px;}
   .brand-logo-card{background:#fff;border-radius:8px;padding:4px 10px;display:flex;align-items:center;}
   .brand-logo-img{height:36px;display:block;}
@@ -362,7 +365,23 @@
     <h1 class="page-title">Admin</h1>
     <p class="page-sub">Přehled rezervací napříč hřišti, nezaplacené platby, ruční správa.</p>
 
-    <div class="section-title" style="margin-top:0;">Založit akci do Kalendáře</div>
+    <div class="admin-subnav" id="adminSubnav">
+      <button onclick="jumpToAdminSection('sec-zalozit-akci')">Založit akci</button>
+      <button onclick="jumpToAdminSection('sec-clenove')">Členové</button>
+      <button onclick="jumpToAdminSection('sec-obsazenost')">Obsazenost</button>
+      <button onclick="jumpToAdminSection('sec-sprava-kurtu')">Správa kurtů</button>
+      <button onclick="jumpToAdminSection('sec-trzby')">Tržby</button>
+      <button onclick="jumpToAdminSection('sec-solo')">Sólo tréninky</button>
+      <button onclick="jumpToAdminSection('sec-bar')">Platby na baru</button>
+      <button onclick="jumpToAdminSection('sec-ceka-platba')">Čeká na platbu</button>
+      <button onclick="jumpToAdminSection('sec-nesparovane')">Nespárované</button>
+      <button onclick="jumpToAdminSection('sec-refundy')">Vrácení peněz</button>
+      <button onclick="jumpToAdminSection('sec-predplacena')">Předplacená členství</button>
+      <button onclick="jumpToAdminSection('sec-serie')">Série</button>
+      <button onclick="jumpToAdminSection('sec-vsechny-rezervace')">Všechny rezervace</button>
+    </div>
+
+    <div class="section-title" id="sec-zalozit-akci" style="margin-top:0;">Založit akci do Kalendáře</div>
     <p class="page-sub" style="margin-top:-6px;">Turnaj, přednáška, social, cvičení Zdravý hráč — cokoliv. Zobrazí se v appce Kalendář. Kurt zablokuj jen když akce fyzicky zabírá konkrétní kurt.</p>
     <div class="card" style="display:block;">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
@@ -414,7 +433,7 @@
       <div id="createEventStatus" style="display:none;margin-top:10px;padding:10px 14px;border-radius:8px;font-size:14px;font-weight:600;"></div>
     </div>
 
-    <div class="section-title">Členové</div>
+    <div class="section-title" id="sec-clenove">Členové</div>
     <p class="page-sub" style="margin-top:-6px;">Skutečná tabulka <code>member_profiles</code>. Slevu edituje jen admin zde.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
       <div class="field" style="max-width:320px;margin:0;"><label style="font-size:12px;">Hledat</label><input id="memberSearch" placeholder="Jméno, e-mail, poznámka..." oninput="paintMembersTable()"></div>
@@ -462,7 +481,7 @@
     <p id="memberFilterCount" style="font-size:12px;color:#6E6E6E;margin:8px 0 0;"></p>
     <table class="admin-table" id="membersTable" style="margin-top:12px;"></table>
 
-    <div class="section-title">Obsazenost všech hřišť</div>
+    <div class="section-title" id="sec-obsazenost">Obsazenost všech hřišť</div>
     <div class="date-bar">
       <div class="date-nav"><button class="icon-btn" id="overviewPrevDay">‹</button><button class="icon-btn" id="overviewNextDay">›</button></div>
       <div class="date-label" id="overviewDateLabel"></div>
@@ -480,13 +499,13 @@
         <span class="sw legend-admin-only" style="display:none;"><span class="box" style="background:#8B6FEA"></span>Zdarma (admin)</span>
     </div>
 
-    <div class="section-title">Správa kurtů</div>
+    <div class="section-title" id="sec-sprava-kurtu">Správa kurtů</div>
     <p class="page-sub" style="margin-top:-6px;">Aktivace/deaktivace (např. kvůli opravě) a provozní doba po jednotlivých kurtech. Prázdné pole = platí výchozí doba areálu.</p>
     <table class="admin-table" id="courtsManageTable"></table>
 
     <div class="admin-grid" id="adminStats"></div>
 
-    <div class="section-title">📊 Tržby podle období</div>
+    <div class="section-title" id="sec-trzby">📊 Tržby podle období</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
       <div class="field" style="margin-bottom:0;">
         <label>Období</label>
@@ -502,26 +521,26 @@
     </div>
     <div id="revenueBreakdown">Načítání…</div>
 
-    <div class="section-title">🧍 Sólo tréninky (posledních 30 dní)</div>
+    <div class="section-title" id="sec-solo">🧍 Sólo tréninky (posledních 30 dní)</div>
     <p class="page-sub" style="margin-top:-6px;">Rezervace, kde člen čestně prohlásil, že hraje sám, a dostal plnou slevu na celý kurt — pro namátkovou kontrolu.</p>
     <table class="admin-table" id="soloTrainingTable"></table>
 
-    <div class="section-title">🍹 Platby na místě přes QR na baru (VS 406, posledních 30 dní)</div>
+    <div class="section-title" id="sec-bar">🍹 Platby na místě přes QR na baru (VS 406, posledních 30 dní)</div>
     <p class="page-sub" style="margin-top:-6px;">Tyto platby nejsou vázané na žádnou rezervaci (může to být celý kurt nebo jen podíl jednoho hráče) — jen evidence pro účetnictví.</p>
     <table class="admin-table" id="onsiteBarPaymentsTable"></table>
 
-    <div class="section-title">Čeká na platbu</div>
+    <div class="section-title" id="sec-ceka-platba">Čeká na platbu</div>
     <table class="admin-table" id="pendingTable"></table>
 
-    <div class="section-title">Nespárované platby</div>
+    <div class="section-title" id="sec-nesparovane">Nespárované platby</div>
     <p class="page-sub" style="margin-top:-6px;">Peníze přišly na účet, ale appka je nedokázala spárovat s žádnou rezervací — vyžaduje ruční kontrolu.</p>
     <table class="admin-table" id="unmatchedTable"></table>
 
-    <div class="section-title">Čeká na vrácení peněz</div>
+    <div class="section-title" id="sec-refundy">Čeká na vrácení peněz</div>
     <p class="page-sub" style="margin-top:-6px;">Zaplacené rezervace, které byly zrušené — peníze zůstaly na účtu, dokud je ručně nepošleš zpátky a neoznačíš jako vyřešené.</p>
     <table class="admin-table" id="refundsTable"></table>
 
-    <div class="section-title">Předplacená členství</div>
+    <div class="section-title" id="sec-predplacena">Předplacená členství</div>
     <p class="page-sub" style="margin-top:-6px;">Někdo zaplatil členství mimo appku (hotově, převodem)? Zapiš jeho e-mail sem — až se v appce zaregistruje, automaticky dostane správnou slevu.</p>
     <div class="card" style="display:block;">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
@@ -539,11 +558,11 @@
     <div class="field" style="max-width:320px;margin-top:8px;"><input id="pendingMembershipSearch" placeholder="Hledat podle jména nebo e-mailu..." oninput="renderPendingMemberships()"></div>
     <table class="admin-table" id="pendingMembershipsTable" style="margin-top:12px;"></table>
 
-    <div class="section-title">Opakované rezervace (série)</div>
+    <div class="section-title" id="sec-serie">Opakované rezervace (série)</div>
     <p class="page-sub" style="margin-top:-6px;">Pravidelné skupiny — zrušíš celou sérii jedním tlačítkem, ne termín po termínu.</p>
     <table class="admin-table" id="seriesTable"></table>
 
-    <div class="section-title">Všechny rezervace</div>
+    <div class="section-title" id="sec-vsechny-rezervace">Všechny rezervace</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
       <input id="allSearch" placeholder="Hledat podle jména..." style="flex:1;min-width:200px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;" oninput="renderAdminTable()">
       <select id="allFilter" onchange="renderAdminTable()" style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;">
@@ -838,6 +857,22 @@
 const SUPABASE_URL = 'https://ppntayyhksqgsxmemvaj.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwbnRheXloa3NxZ3N4bWVtdmFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNDc3MTcsImV4cCI6MjA5ODkyMzcxN30.IGm4fpF8NQIjEDesJACYOHqFcVtKB9n-6PWtRWbXyVc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function updateHeaderHeightVar(){
+  const h = document.querySelector('header.app-header');
+  if(h) document.documentElement.style.setProperty('--header-h', h.offsetHeight + 'px');
+}
+window.addEventListener('resize', updateHeaderHeightVar);
+window.addEventListener('load', updateHeaderHeightVar);
+function jumpToAdminSection(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  updateHeaderHeightVar();
+  const subnav = document.getElementById('adminSubnav');
+  const offset = (document.querySelector('header.app-header')?.offsetHeight || 60) + (subnav?.offsetHeight || 0) + 12;
+  const top = el.getBoundingClientRect().top + window.scrollY - offset;
+  window.scrollTo({ top, behavior: 'smooth' });
+}
 
 /* ================= CONFIG (statické konstanty, zbytek jde z DB) ================= */
 const MAX_DURATION_CAP = 4;
@@ -3870,6 +3905,7 @@ async function enablePushNotifications(){
     renderHeader(); await renderAll();
   });
   renderHeader();
+  updateHeaderHeightVar();
   await renderAll();
 })();
 </script>
