@@ -429,6 +429,11 @@
         <div class="field" style="min-width:200px;margin:0;"><label>Kurt</label><select id="eventCourt"></select></div>
       </div>
 
+      <div class="checkbox-row">
+        <input type="checkbox" id="eventPayOnSite">
+        <div><div class="cb-title">Platba na místě (appka nevyžaduje online QR platbu)</div><div class="cb-sub">Cena se zobrazí, ale přihlášení proběhne rovnou bez platby — vybereš hotově na místě. Hodí se pro Zdravého hráče a podobné pravidelné akce.</div></div>
+      </div>
+
       <button class="btn btn-dark" style="margin-top:14px;" onclick="createClubEvent()">Založit akci</button>
       <div id="createEventStatus" style="display:none;margin-top:10px;padding:10px 14px;border-radius:8px;font-size:14px;font-weight:600;"></div>
     </div>
@@ -2287,15 +2292,23 @@ async function openEventRegistrantsModal(ev){
   const { data: profiles } = await sb.from('member_profiles').select('user_id, full_name, phone').in('user_id', memberIds);
   const profileById = {};
   (profiles||[]).forEach(p=>{ profileById[p.user_id] = p; });
-  box.innerHTML = `<table class="admin-table"><thead><tr><th>Jméno</th><th>Telefon</th><th>Spoluhráč</th><th>Cena</th><th>Stav</th></tr></thead><tbody>
+  box.innerHTML = `<table class="admin-table"><thead><tr><th>Jméno</th><th>Telefon</th><th>Spoluhráč</th><th>Cena</th><th>Stav</th><th></th></tr></thead><tbody>
     ${regs.map(r=>{
       const p = r.member_id ? profileById[r.member_id] : null;
       const name = p?.full_name || r.participant_name || '—';
       const phone = p?.phone || r.participant_phone || '—';
       const statusHtml = r.status==='paid_confirmed' ? '<span class="status-pill paid">Zaplaceno</span>' : '<span class="status-pill pending">Čeká na platbu</span>';
-      return `<tr><td>${name}${!p?' <small style="color:#948e83;">(bez účtu)</small>':''}</td><td>${phone}</td><td>${r.partner_name || '—'}</td><td>${r.amount_due} Kč</td><td>${statusHtml}</td></tr>`;
+      const actionHtml = r.status==='pending_payment' ? `<button class="btn btn-sm btn-green" onclick="markEventRegPaid('${r.id}')">Označit jako zaplaceno</button>` : '';
+      return `<tr><td>${name}${!p?' <small style="color:#948e83;">(bez účtu)</small>':''}</td><td>${phone}</td><td>${r.partner_name || '—'}</td><td>${r.amount_due} Kč</td><td>${statusHtml}</td><td>${actionHtml}</td></tr>`;
     }).join('')}
   </tbody></table>`;
+}
+async function markEventRegPaid(regId){
+  const { error } = await sb.from('event_registrations').update({status:'paid_confirmed', paid_at: new Date().toISOString()}).eq('id', regId);
+  if(error){ toast('Chyba: '+error.message); return; }
+  await sb.from('payments').update({status:'manually_confirmed', paid_at: new Date().toISOString(), confirmed_by: session.user.email}).eq('event_registration_id', regId);
+  toast('Označeno jako zaplaceno');
+  await openEventRegistrantsModal(activeAdminRegEvent);
 }
 async function manualRegisterForEvent(){
   const ev = activeAdminRegEvent;
@@ -2345,6 +2358,9 @@ function openEventSignupModal(ev){
   } else {
     priceLabel = `${ev.price} Kč / ${perUnit}`;
   }
+  if(ev.pay_on_site && !ev.is_free && ev.price){
+    priceLabel += ' <span style="color:#6E6E6E;font-weight:400;">(platba na místě v hotovosti)</span>';
+  }
   document.getElementById('signupEventPrice').innerHTML = priceLabel;
   document.getElementById('signupPartnerRow').style.display = ev.price_mode==='dvojice' ? '' : 'none';
   document.getElementById('signupPartnerName').value = '';
@@ -2358,6 +2374,7 @@ async function submitEventSignup(){
   const rawPrice = ev.is_free ? 0 : Number(ev.price)||0;
   const discount = profile.discount_percent || 0;
   const amount = rawPrice === 0 ? 0 : Math.round(rawPrice * (1 - discount/100));
+  const payOnSite = !!ev.pay_on_site && amount > 0;
   const { data: reg, error } = await sb.from('event_registrations').insert({
     club_id: CLUB_ID, event_id: ev.id, member_id: profile.user_id, partner_name: partnerName,
     amount_due: amount, status: amount===0 ? 'paid_confirmed' : 'pending_payment',
@@ -2366,7 +2383,13 @@ async function submitEventSignup(){
   if(error){ toast('Chyba při přihlašování: '+error.message); return; }
 
   closeModal('eventSignupOverlay');
-  if(amount===0){
+  if(payOnSite){
+    await sb.from('payments').insert({
+      club_id: CLUB_ID, event_registration_id: reg.id, amount, variable_symbol: genVS(), status:'created'
+    });
+    toast(`Přihlášeno — ${amount} Kč zaplatíš na místě v hotovosti`);
+    await renderCalendar();
+  } else if(amount===0){
     await sb.from('payments').insert({
       club_id: CLUB_ID, event_registration_id: reg.id, amount: 0, variable_symbol: genVS(), status:'created'
     });
@@ -3185,6 +3208,7 @@ async function createClubEvent(){
   const descShort = document.getElementById('eventDescShort').value.trim();
   const descLong = document.getElementById('eventDescLong').value.trim();
   const imageUrl = document.getElementById('eventImageUrl').value.trim();
+  const payOnSite = document.getElementById('eventPayOnSite').checked;
 
   if(!name || !date || to<=from){ showStatus('⚠️ Vyplň název, datum a platný časový rozsah (Do musí být později než Od).', true); return; }
   if(blocksCourt && !courtId){ showStatus('⚠️ Vyber kurt, nebo odškrtni blokaci kurtu.', true); return; }
@@ -3197,7 +3221,7 @@ async function createClubEvent(){
     location: blocksCourt ? `${court.locationName} · ${court.name}` : (locationText || null),
     description_short: descShort || null, description_long: descLong || null,
     image_url: imageUrl || null,
-    capacity, price: priceVal, price_mode: priceMode, is_free: priceVal === 0,
+    capacity, price: priceVal, price_mode: priceMode, is_free: priceVal === 0, pay_on_site: payOnSite,
     status: 'otevreno', visibility: 'verejne', organizer: session.user.email
   }).select().single();
   if(evErr){ showStatus('❌ Chyba při zakládání akce: '+evErr.message, true); return; }
@@ -3222,6 +3246,7 @@ async function createClubEvent(){
   document.getElementById('eventPrice').value='';
   document.getElementById('eventPriceMode').value='osoba';
   document.getElementById('eventLocation').value='';
+  document.getElementById('eventPayOnSite').checked=false;
   showStatus(blocksCourt ? `✅ Akce „${name}" založena — v Kalendáři i Rezervacích` : `✅ Akce „${name}" založena v Kalendáři`, false);
   toast('Akce založena');
   await renderAll();
