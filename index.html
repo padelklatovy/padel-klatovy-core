@@ -972,6 +972,19 @@ function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg
 function showModal(id){ document.getElementById(id).classList.add('show'); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 function genVS(){ return Date.now().toString().slice(-9); }
+function genUUID(){
+  // crypto.randomUUID() vyžaduje novější prohlížeč (a zabezpečený kontext) —
+  // na starších/jiných prohlížečích chybí. Tohle funguje úplně všude a pro
+  // naše účely (jen skupinové ID série, ne kryptografický klíč) to stačí.
+  if(typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'){
+    try { return crypto.randomUUID(); } catch(e) {}
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random()*16|0;
+    const v = c==='x' ? r : (r&0x3|0x8);
+    return v.toString(16);
+  });
+}
 const CLUB_IBAN = 'CZ7420100000002603548015';
 const CLUB_ACCOUNT_DISPLAY = '2603548015/2010';
 
@@ -2034,7 +2047,7 @@ async function confirmBookingRecurring(){
   const okDates = dates.filter(dt => !blocked.has(dt));
   if(!okDates.length){ showBookingStatus('⚠️ Všechny termíny série jsou obsazené.', true); return; }
 
-  const seriesId = crypto.randomUUID();
+  const seriesId = genUUID();
   const rows = okDates.map(dt => {
     const { payload } = buildBasePayload(dt);
     payload.series_id = seriesId;
