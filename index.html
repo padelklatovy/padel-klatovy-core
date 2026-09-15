@@ -889,6 +889,36 @@ function orderedVenueSlugs(){
   return known.concat(rest);
 }
 const DISCOUNT_OPTIONS = [0, 20, 50, 100];
+// Appka pohlaví nikde nesbírá — tenhle seznam a funkce se používají jen na
+// hrubý odhad v Dashboardu (Komunita), nikam se neukládá, nikde jinde v appce
+// se nepoužívá. Odhad: příjmení končící na "á" (běžná česká skloňba) NEBO
+// křestní jméno je na tomhle seznamu → žena.
+const FEMALE_FIRST_NAMES = new Set([
+  'adéla','alena','alexandra','alice','alžběta','amálie','anastázie','andrea','aneta','anežka','anna',
+  'antonie','barbora','běla','blanka','blažena','bohdana','bohumila','božena','brigita','cecílie',
+  'dagmar','dana','daniela','danuše','darina','denisa','diana','dita','dominika','dora','dorota',
+  'doubravka','drahomíra','drahoslava','edita','eliška','ella','ema','emma','emilie','erika','eva',
+  'evženie','františka','gabriela','gita','gizela','hana','hedvika','helena','ilona','ingrid','irena',
+  'iva','ivana','iveta','ivona','jana','jarmila','jaroslava','jindřiška','jiřina','jitka','judita','julie',
+  'kamila','karin','karina','karolína','kateřina','kazimíra','klára','klaudie','kristýna','květa',
+  'květoslava','ladislava','laura','lenka','leona','liliana','linda','ljuba','lucie','ludmila','lýdie',
+  'magdaléna','marcela','marie','marika','marta','martina','matylda','michaela','milada','milena',
+  'miloslava','miluše','mína','miriam','miroslava','monika','naděžda','nataša','natálie','nela','nikol',
+  'nikola','nina','olga','otýlie','pavla','pavlína','petra','radana','radka','radmila','radoslava',
+  'regina','renáta','romana','růžena','sabina','sára','silvie','simona','slavěna','slávka','soňa',
+  'stanislava','stela','světlana','svatava','šárka','štěpánka','taťána','tereza','valentýna','valérie',
+  'vanda','vanessa','vendula','veronika','věra','věnceslava','viktorie','vilma','vlasta','vlastimila',
+  'zdenka','zdeňka','zdislava','zita','zlata','zoja','zora','zuzana','žaneta','žofie',
+  // časté přepisy/varianty (cizinky, jména bez diakritiky v appce)
+  'nastasia','nastya','natasha','anastasiya','tatiana','taťjana','ekaterina','jekatěrina',
+  'kristina','viktoriya','yuliya','olesya','mariya','elena','oksana','svetlana'
+]);
+function estimateIsFemale(fullName){
+  const parts = (fullName||'').trim().split(/\s+/);
+  const firstName = (parts[0]||'').toLowerCase();
+  const surname = (parts[parts.length-1]||'').toLowerCase();
+  return surname.slice(-1) === 'á' || FEMALE_FIRST_NAMES.has(firstName);
+}
 const PLAYER_LEVELS = [
   { code:'D2', label:'D2 — Začátečník' },
   { code:'D1', label:'D1 — Mírně pokročilý začátečník' },
@@ -3869,7 +3899,7 @@ async function renderAdminDashboard(el){
   const { count: refundCount } = await sb.from('reservations').select('id',{count:'exact',head:true}).eq('refund_status','pending');
   const { count: unmatchedCount } = await sb.from('unmatched_fio_transactions').select('id',{count:'exact',head:true}).eq('status','pending');
 
-  const { data: levelRows } = await sb.from('member_profiles').select('level, role').eq('role','member');
+  const { data: levelRows } = await sb.from('member_profiles').select('full_name, level, role').eq('role','member');
   const { data: activityRows } = await sb.rpc('get_level_activity');
   const { data: pairRows } = await sb.rpc('get_frequent_pairs', { limit_n: 12 });
 
@@ -3879,6 +3909,13 @@ async function renderAdminDashboard(el){
   (levelRows||[]).forEach(m=>{ const lv = m.level || 'Nevyplněno'; levelCounts[lv] = (levelCounts[lv]||0) + 1; });
   const levelKeysOrdered = [...levelOrder.filter(l=>levelCounts[l]), ...(levelCounts['Nevyplněno']?['Nevyplněno']:[])];
   const maxLevelCount = Math.max(1, ...Object.values(levelCounts));
+
+  const totalMembers = (levelRows||[]).length;
+  // Odhad muž/žena — appka pohlaví nikde nesbírá, viz estimateIsFemale výše v souboru.
+  let zenyOdhad = 0, muziOdhad = 0;
+  (levelRows||[]).forEach(m=>{
+    if(estimateIsFemale(m.full_name)) zenyOdhad++; else muziOdhad++;
+  });
 
   const levelDistHtml = levelKeysOrdered.map(lv=>{
     const n = levelCounts[lv];
@@ -3911,6 +3948,8 @@ async function renderAdminDashboard(el){
     <h1 class="page-title">Ahoj ${profile.full_name.split(' ')[0]} 👋</h1>
     <p class="page-sub">Provozní přehled ke dnešnímu dni.</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:22px;">
+      <div class="card"><div class="info"><b>Registrovaných celkem</b><div style="font-size:30px;font-weight:700;color:var(--ink);margin-top:4px;">${totalMembers}</div></div></div>
+      <div class="card"><div class="info"><b>Muži / ženy</b><div style="font-size:30px;font-weight:700;color:var(--ink);margin-top:4px;">${muziOdhad} / ${zenyOdhad}</div><div class="meta" style="margin-top:2px;">odhad podle jména, appka to nesbírá</div></div></div>
       <div class="card"><div class="info"><b>Obsazenost dnes</b><div style="font-size:30px;font-weight:700;color:var(--ink);margin-top:4px;">${occupancyPct} %</div></div></div>
       <div class="card"><div class="info"><b>Čeká na platbu</b><div style="font-size:30px;font-weight:700;color:var(--ink);margin-top:4px;">${pendingCount||0}</div></div></div>
       <div class="card"><div class="info"><b>Open Match</b><div class="meta" style="margin-top:6px;">${activeOm.length} aktivní${needingOm.length?`<br>${needingOm.length} čeká na hráče`:''}</div></div></div>
