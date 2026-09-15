@@ -3869,6 +3869,44 @@ async function renderAdminDashboard(el){
   const { count: refundCount } = await sb.from('reservations').select('id',{count:'exact',head:true}).eq('refund_status','pending');
   const { count: unmatchedCount } = await sb.from('unmatched_fio_transactions').select('id',{count:'exact',head:true}).eq('status','pending');
 
+  const { data: levelRows } = await sb.from('member_profiles').select('level, role').eq('role','member');
+  const { data: activityRows } = await sb.rpc('get_level_activity');
+  const { data: pairRows } = await sb.rpc('get_frequent_pairs', { limit_n: 12 });
+
+  const levelOrder = PLAYER_LEVELS.map(l=>l.code); // D2..A
+  const levelLabelOf = code => (PLAYER_LEVELS.find(l=>l.code===code) || {label: code}).label;
+  const levelCounts = {};
+  (levelRows||[]).forEach(m=>{ const lv = m.level || 'Nevyplněno'; levelCounts[lv] = (levelCounts[lv]||0) + 1; });
+  const levelKeysOrdered = [...levelOrder.filter(l=>levelCounts[l]), ...(levelCounts['Nevyplněno']?['Nevyplněno']:[])];
+  const maxLevelCount = Math.max(1, ...Object.values(levelCounts));
+
+  const levelDistHtml = levelKeysOrdered.map(lv=>{
+    const n = levelCounts[lv];
+    const pct = Math.round(n/maxLevelCount*100);
+    const label = lv==='Nevyplněno' ? 'Nevyplněno' : levelLabelOf(lv);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <div style="width:170px;font-size:12.5px;color:#4A4840;flex:none;">${label}</div>
+      <div style="flex:1;background:#F0EEE6;border-radius:6px;height:18px;overflow:hidden;"><div style="width:${pct}%;background:var(--ink);height:100%;"></div></div>
+      <div style="width:28px;text-align:right;font-size:12.5px;font-weight:600;flex:none;">${n}</div>
+    </div>`;
+  }).join('');
+
+  const tiers = ['Pravidelně','Občas','Neaktivní'];
+  const tierColor = { 'Pravidelně':'#1B5E20', 'Občas':'#946400', 'Neaktivní':'#948e83' };
+  const activityByLevel = {};
+  (activityRows||[]).forEach(r=>{ const lv = r.level==='Nevyplněno' ? 'Nevyplněno' : r.level; (activityByLevel[lv] ||= {})[r.activity_tier] = r.pocet; });
+  const activityLevelKeys = [...levelOrder.filter(l=>activityByLevel[l]), ...(activityByLevel['Nevyplněno']?['Nevyplněno']:[])];
+  const activityHtml = `<table class="admin-table"><thead><tr><th>Úroveň</th>${tiers.map(t=>`<th>${t}</th>`).join('')}</tr></thead><tbody>
+    ${activityLevelKeys.map(lv=>`<tr><td>${lv==='Nevyplněno'?'Nevyplněno':lv}</td>${tiers.map(t=>`<td style="color:${tierColor[t]};font-weight:600;">${(activityByLevel[lv]&&activityByLevel[lv][t])||0}</td>`).join('')}</tr>`).join('')}
+  </tbody></table>
+  <p style="font-size:12px;color:#948e83;margin-top:6px;">Pravidelně = 4+ odehraných rezervací za posledních 60 dní, Občas = 1–3, Neaktivní = 0 (ale má účet).</p>`;
+
+  const pairsHtml = (pairRows && pairRows.length) ? `<div class="card-list">${pairRows.map(p=>`
+    <div class="card"><div class="info">
+      <b>${p.jmeno1} <span style="font-weight:400;color:#948e83;">(${p.uroven1||'—'})</span> + ${p.jmeno2} <span style="font-weight:400;color:#948e83;">(${p.uroven2||'—'})</span></b>
+      <div class="meta">${p.spolu_hrali}× spolu na kurtu</div>
+    </div></div>`).join('')}</div>` : `<p style="color:#948e83;font-size:13px;">Zatím málo dat na rozpoznání dvojic.</p>`;
+
   el.innerHTML = `
     <h1 class="page-title">Ahoj ${profile.full_name.split(' ')[0]} 👋</h1>
     <p class="page-sub">Provozní přehled ke dnešnímu dni.</p>
@@ -3881,6 +3919,15 @@ async function renderAdminDashboard(el){
     </div>
     ${eventsToday && eventsToday.length ? `<div class="section-title">Dnešní akce</div><div class="card-list">${eventsToday.map(ev=>`<div class="card"><div class="info"><b>${(ev.time_from||'').slice(0,5)}</b><div class="meta">${ev.name}</div></div></div>`).join('')}</div>` : ''}
     ${tomorrowTournaments && tomorrowTournaments.length ? `<div class="section-title">Zítřejší turnaj</div><div class="card-list">${tomorrowTournaments.map(t=>`<div class="card"><div class="info"><b>${t.name}</b><div class="meta">${tomorrowSignups} hráčů přihlášeno</div></div></div>`).join('')}</div>` : ''}
+
+    <div class="section-title">🎾 Komunita — hráčské úrovně</div>
+    <div class="card" style="display:block;">${levelDistHtml}</div>
+
+    <div class="section-title">🎾 Komunita — aktivita podle úrovně</div>
+    ${activityHtml}
+
+    <div class="section-title">🎾 Komunita — kdo s kým nejčastěji hraje</div>
+    ${pairsHtml}
   `;
 }
 
