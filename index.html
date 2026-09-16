@@ -3868,6 +3868,7 @@ async function renderAdminDashboard(el){
   let totalAvail = 0, totalBooked = 0;
   const { data: allToday } = await sb.from('reservations').select('court_id,start_hour,end_hour,status').eq('date',today).eq('status','paid_confirmed');
   Object.values(venuesConfig).forEach(loc=>{
+    if(!loc.isVisible) return; // schované/ukončené areály (např. Beachvolejbal) se do kapacity nepočítají
     loc.courts.forEach(court=>{
       if(court.isActive===false) return;
       const w = court.weekly && court.weekly[dow];
