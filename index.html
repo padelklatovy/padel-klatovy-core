@@ -378,6 +378,7 @@
       <button onclick="jumpToAdminSection('sec-refundy')">Vrácení peněz</button>
       <button onclick="jumpToAdminSection('sec-predplacena')">Předplacená členství</button>
       <button onclick="jumpToAdminSection('sec-serie')">Série</button>
+      <button onclick="jumpToAdminSection('sec-kontrola-mistni')">Kontrola plateb</button>
       <button onclick="jumpToAdminSection('sec-vsechny-rezervace')">Všechny rezervace</button>
     </div>
 
@@ -566,6 +567,23 @@
     <div class="section-title" id="sec-serie">Opakované rezervace (série)</div>
     <p class="page-sub" style="margin-top:-6px;">Pravidelné skupiny — zrušíš celou sérii jedním tlačítkem, ne termín po termínu.</p>
     <table class="admin-table" id="seriesTable"></table>
+
+    <div class="section-title" id="sec-kontrola-mistni">🔍 Kontrola plateb na místě (VS 406)</div>
+    <p class="page-sub" style="margin-top:-6px;">Porovnává minimum, co mělo za kurty přes VS 406 přijít (cena pro člena u sledovaných skupin), s tím, kolik reálně přišlo. Kontroluje jen spodní hranici — když dorazí nečlen a zaplatí víc, nikdy to nevyvolá poplach.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
+      <div class="field" style="margin-bottom:0;">
+        <label>Období</label>
+        <select id="onsiteCheckPeriodSelect" onchange="onOnsiteCheckPeriodChange()">
+          <option value="this_month">Aktuální měsíc</option>
+          <option value="last_month">Minulý měsíc</option>
+          <option value="last_30">Posledních 30 dní</option>
+          <option value="custom">Vlastní rozsah</option>
+        </select>
+      </div>
+      <div class="field" id="onsiteCheckCustomFrom" style="display:none;margin-bottom:0;"><label>Od</label><input type="date" id="onsiteCheckFrom" onchange="renderOnsiteCheck()"></div>
+      <div class="field" id="onsiteCheckCustomTo" style="display:none;margin-bottom:0;"><label>Do</label><input type="date" id="onsiteCheckTo" onchange="renderOnsiteCheck()"></div>
+    </div>
+    <div id="onsiteCheckContent">Načítání…</div>
 
     <div class="section-title" id="sec-vsechny-rezervace">Všechny rezervace</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
@@ -2958,6 +2976,89 @@ function revenuePeriodRange(){
   const first = new Date(today.getFullYear(), today.getMonth(), 1);
   return { from: toLocalISODate(first), to: toLocalISODate(today) };
 }
+
+/* ============ Kontrola plateb na místě (VS 406 vs. minimum za skupiny) ============
+   expected_onsite_amount je záměrně MINIMUM (cena pro člena), ne přesná
+   očekávaná částka — u dlouhodobých termínů se totiž střídá, jestli přijde
+   člen nebo nečlen, takže přesná částka kolísá. Kontrola proto hlídá jen
+   spodní hranici: pokud přijde nečlen a zaplatí víc, nikdy to nevyvolá
+   poplach, protože "víc než minimum" je vždycky v pořádku. */
+function onOnsiteCheckPeriodChange(){
+  const period = document.getElementById('onsiteCheckPeriodSelect').value;
+  const custom = period === 'custom';
+  document.getElementById('onsiteCheckCustomFrom').style.display = custom ? '' : 'none';
+  document.getElementById('onsiteCheckCustomTo').style.display = custom ? '' : 'none';
+  renderOnsiteCheck();
+}
+function onsiteCheckPeriodRange(){
+  const period = document.getElementById('onsiteCheckPeriodSelect').value;
+  const today = new Date();
+  if(period === 'custom'){
+    const from = document.getElementById('onsiteCheckFrom').value;
+    const to = document.getElementById('onsiteCheckTo').value;
+    return { from: from || toLocalISODate(today), to: to || toLocalISODate(today) };
+  }
+  if(period === 'last_30'){
+    const from = new Date(today); from.setDate(from.getDate()-30);
+    return { from: toLocalISODate(from), to: toLocalISODate(today) };
+  }
+  if(period === 'last_month'){
+    const firstThis = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastPrevMonth = new Date(firstThis.getTime() - 86400000);
+    const firstPrevMonth = new Date(lastPrevMonth.getFullYear(), lastPrevMonth.getMonth(), 1);
+    return { from: toLocalISODate(firstPrevMonth), to: toLocalISODate(lastPrevMonth) };
+  }
+  const first = new Date(today.getFullYear(), today.getMonth(), 1);
+  return { from: toLocalISODate(first), to: toLocalISODate(today) };
+}
+async function renderOnsiteCheck(){
+  const el = document.getElementById('onsiteCheckContent');
+  if(!el) return;
+  el.innerHTML = 'Načítání…';
+  const { from, to } = onsiteCheckPeriodRange();
+
+  const { data: groupRes, error: e1 } = await sb.from('reservations').select('date, expected_onsite_amount, series_name')
+    .not('expected_onsite_amount','is',null).gt('expected_onsite_amount', 0)
+    .eq('status','paid_confirmed').gte('date', from).lte('date', to);
+  if(e1){ el.innerHTML = 'Chyba: '+e1.message; return; }
+
+  const { data: kurtPayments, error: e2 } = await sb.from('onsite_bar_payments').select('transaction_date, amount')
+    .eq('payment_category','kurt').gte('transaction_date', from).lte('transaction_date', to);
+  if(e2){ el.innerHTML = 'Chyba: '+e2.message; return; }
+
+  const minimumTotal = (groupRes||[]).reduce((s,r)=>s+Number(r.expected_onsite_amount||0),0);
+  const actualTotal = (kurtPayments||[]).reduce((s,p)=>s+Number(p.amount||0),0);
+  const diff = actualTotal - minimumTotal;
+
+  // Dny, kdy nějaká sledovaná skupina hrála, ale ten den nedorazila ŽÁDNÁ platba VS 406 (kurt) — nejsilnější signál,
+  // funguje bez ohledu na to, jestli přišel člen nebo nečlen (0 Kč je vždy podezřelé, ať je minimum jakékoliv).
+  const paidDates = new Set((kurtPayments||[]).map(p=>p.transaction_date));
+  const groupDatesMissing = {};
+  (groupRes||[]).forEach(r=>{
+    if(!paidDates.has(r.date)){
+      (groupDatesMissing[r.date] ||= []).push(r.series_name || 'Skupina');
+    }
+  });
+  const missingDays = Object.keys(groupDatesMissing).sort();
+
+  const statusColor = diff >= 0 ? '#1B5E20' : '#B00020';
+  const statusBg = diff >= 0 ? '#E8F5E9' : '#FDECEC';
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px;">
+      <div class="card"><div class="info"><b>Minimum mělo přijít</b><div style="font-size:24px;font-weight:700;margin-top:4px;">${minimumTotal} Kč</div><div class="meta" style="margin-top:2px;">cena pro člena u sledovaných skupin</div></div></div>
+      <div class="card"><div class="info"><b>Přišlo přes VS 406 (kurt)</b><div style="font-size:24px;font-weight:700;margin-top:4px;">${actualTotal} Kč</div></div></div>
+      <div class="card" style="background:${statusBg};"><div class="info"><b>Rozdíl oproti minimu</b><div style="font-size:24px;font-weight:700;margin-top:4px;color:${statusColor};">${diff>=0?'+':''}${diff} Kč</div></div></div>
+    </div>
+    ${missingDays.length ? `
+      <p style="font-weight:600;margin-bottom:6px;color:#B00020;">⚠️ Dny, kdy skupina hrála, ale nedorazila žádná platba VS 406:</p>
+      <table class="admin-table"><thead><tr><th>Datum</th><th>Skupina(y)</th></tr></thead><tbody>
+        ${missingDays.map(d=>`<tr><td>${d}</td><td>${[...new Set(groupDatesMissing[d])].join(', ')}</td></tr>`).join('')}
+      </tbody></table>
+    ` : `<p style="color:#1B5E20;font-weight:600;">✅ Žádný den bez platby — ve všech dnech, kdy sledovaná skupina hrála, dorazila aspoň nějaká platba VS 406.</p>`}
+    <p style="font-size:12px;color:#948e83;margin-top:10px;">Kontroluje jen skupiny s vyplněným minimem (sekce Série výše). Je to spodní hranice (cena pro člena) — pokud přijde nečlen a zaplatí víc, rozdíl vyjde kladně a nic to nerozhodí. Nerozlišuje jednotlivce, jen souhrn za období a "žádná platba ten den".</p>
+  `;
+}
 async function renderRevenueBreakdown(){
   const el = document.getElementById('revenueBreakdown');
   if(!el) return;
@@ -2996,6 +3097,7 @@ async function renderAdmin(){
   await renderAllVenuesOverview();
   renderCourtsManageTable();
   renderRevenueBreakdown();
+  renderOnsiteCheck();
   const { data, error } = await sb.from('reservations').select('*').order('date',{ascending:false});
   if(error){ toast('Chyba: '+error.message); return; }
   adminReservationsCache = data;
@@ -3542,17 +3644,30 @@ function renderSeriesAdmin(){
   });
   const list = Object.keys(groups).map(id=>({id, ...groups[id]}));
   table.innerHTML = list.length ? `
-    <tr><th>Název série</th><th>Hřiště / kurt</th><th>Termínů</th><th>Od–do</th><th>Organizátor</th><th></th></tr>
+    <tr><th>Název série</th><th>Hřiště / kurt</th><th>Termínů</th><th>Od–do</th><th>Organizátor</th><th>Minimum na místě (Kč/termín, cena pro člena)</th><th></th></tr>
     ${list.map(g=>{
       const court = findCourt(g.courtId);
       const dates = g.items.map(i=>i.date).sort();
+      const currentExpected = g.items[0].expected_onsite_amount;
       return `<tr>
         <td><b>${g.name}</b></td><td>${court.locationName} · ${court.name}</td><td>${g.items.length}</td>
         <td>${dates[0]} – ${dates[dates.length-1]}</td><td>${g.items[0].organizer_name}</td>
+        <td><div style="display:flex;gap:4px;align-items:center;">
+          <input type="number" id="expAmt-${g.id}" value="${currentExpected!=null?currentExpected:''}" placeholder="prázdné = nesleduje se" style="width:90px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;">
+          <button class="btn btn-sm btn-ghost" onclick="updateSeriesExpectedAmount('${g.id}')">Uložit</button>
+        </div></td>
         <td><button class="btn btn-sm btn-ghost" onclick="cancelSeries('${g.id}')">Zrušit celou sérii</button></td>
       </tr>`;
     }).join('')}
   ` : `<tr><td style="padding:16px;color:#948e83;">Zatím žádné aktivní série</td></tr>`;
+}
+async function updateSeriesExpectedAmount(seriesId){
+  const input = document.getElementById(`expAmt-${seriesId}`);
+  const val = input.value.trim() === '' ? null : Number(input.value);
+  const { error } = await sb.from('reservations').update({ expected_onsite_amount: val }).eq('series_id', seriesId);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Minimální částka uložena pro celou sérii');
+  await renderAdmin();
 }
 function populateSeriesBulkEditSelects(currentCourtId, currentStart, currentEnd){
   const courtSel = document.getElementById('seriesBulkEditCourt');
