@@ -272,6 +272,7 @@
   <section class="view active" id="view-reservations">
     <h1 class="page-title">Rezervace kurtů</h1>
     <p class="page-sub" id="reservationsIntro">Vyber si hřiště / lokalitu, kde chceš rezervovat.</p>
+    <div id="profileNudgeCard"></div>
     <button class="btn btn-ghost btn-sm" id="allVenuesToggleBtn" style="display:none;margin-bottom:14px;" onclick="showAllVenuesGrid()">📋 Zobrazit všechny areály najednou</button>
     <div id="productSelector" class="product-grid"></div>
     <div id="allVenuesWrap" style="display:none;">
@@ -335,6 +336,7 @@
   <section class="view" id="view-mine">
     <h1 class="page-title">Moje rezervace</h1>
     <p class="page-sub">Přehled tvých rezervací napříč všemi hřišti a stav platby.</p>
+    <div id="myWaitlistContent"></div>
     <div class="card-list" id="mineList">Načítání…</div>
   </section>
 
@@ -658,6 +660,59 @@
     <div class="field"><label>Jméno a příjmení</label><input id="profileName" placeholder="Jana Nováková"></div>
     <div class="field"><label>Telefon</label><input id="profilePhone" placeholder="+420 602 000 000"></div>
     <div class="field"><label>Herní úroveň</label><select id="profileLevel"></select><div id="profileLevelDetail"></div></div>
+    <div id="voluntaryProfileFields" style="display:none;">
+      <div class="section-title" style="font-size:13px;margin:14px 0 8px;">Ať máš s kým hrát — nepovinné, kdykoliv změníš</div>
+      <div class="field"><label>Na které straně nejraději hraješ?</label>
+        <select id="profileSide">
+          <option value="">Zatím nevím</option>
+          <option value="leva">Vlevo</option>
+          <option value="prava">Vpravo</option>
+          <option value="obe">Obě strany</option>
+        </select>
+        <div style="font-size:11.5px;color:#948e83;margin-top:4px;">Strana při pohledu na síť z vlastní poloviny kurtu.</div>
+      </div>
+      <div class="field"><label>Jak si chceš zahrát?</label>
+        <select id="profileStyle">
+          <option value="">Nevyplněno</option>
+          <option value="radost">Hlavně pro radost</option>
+          <option value="soutezne">Baví mě soutěžit</option>
+          <option value="oboji">Obojí</option>
+        </select>
+      </div>
+      <div class="field"><label>Chceš hrát i s novými lidmi?</label>
+        <select id="profileLooking">
+          <option value="">Nevyplněno</option>
+          <option value="ano">Ano, rád/a poznám další hráče</option>
+          <option value="obcas">Občas, když nám někdo chybí</option>
+          <option value="ne">Hraju se svou partou</option>
+        </select>
+      </div>
+      <div class="field"><label>Kdy obvykle můžeš hrát?</label>
+        <div id="availDaysBox" style="display:flex;flex-wrap:wrap;gap:8px;font-size:13px;margin-bottom:8px;">
+          ${[['po','Po'],['ut','Út'],['st','St'],['ct','Čt'],['pa','Pá'],['so','So'],['ne','Ne']].map(([v,l])=>`<label style="display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;"><input type="checkbox" class="avail-day-check" value="${v}" onchange="onAvailabilityChange()"> ${l}</label>`).join('')}
+        </div>
+        <div id="availTimesBox" style="display:flex;flex-wrap:wrap;gap:10px;font-size:13px;">
+          <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" class="avail-time-check" value="rano" onchange="onAvailabilityChange()"> Ráno (do 12:00)</label>
+          <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" class="avail-time-check" value="odpoledne" onchange="onAvailabilityChange()"> Odpoledne (12:00–17:00)</label>
+          <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" class="avail-time-check" value="vecer" onchange="onAvailabilityChange()"> Večer (od 17:00)</label>
+        </div>
+        <label style="display:flex;align-items:center;gap:5px;font-size:13px;margin-top:8px;"><input type="checkbox" id="availIrregular" onchange="onAvailabilityChange()"> Mám to pokaždé jinak</label>
+        <div style="font-size:11.5px;color:#948e83;margin-top:4px;">Jde jen o orientační dostupnost. Účast na konkrétní hře vždy potvrzuješ zvlášť.</div>
+      </div>
+      <div class="field"><label>Co tě u nás zajímá?</label>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:13px;">
+          ${[['volne_hry','Volné hry'],['treninky','Tréninky'],['turnaje','Turnaje'],['liga','Liga']].map(([v,l])=>`<label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" class="interest-check" value="${v}"> ${l}</label>`).join('')}
+        </div>
+      </div>
+      <div class="field" style="background:#F7F5EE;border-radius:10px;padding:10px 12px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;"><input type="checkbox" id="profileNotifySuitable"> Upozornit mě, když se objeví vhodná hra</label>
+        <div style="font-size:11.5px;color:#948e83;margin-top:4px;margin-left:24px;">Nabídky vybíráme podle tvé úrovně a uvedené dostupnosti. Nezávislé na tom, jestli chceš poznávat nové lidi výše.</div>
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;"><input type="checkbox" id="profileVisibleSearch"> Zobrazovat mě v hledání spoluhráčů</label>
+        <div style="font-size:11.5px;color:#948e83;margin-top:4px;margin-left:24px;">Telefon, e-mail a přesná dostupnost se ostatním nikdy neukážou.</div>
+      </div>
+    </div>
     <button class="btn btn-primary" style="width:100%;" onclick="saveProfile()">Uložit a pokračovat</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px;" id="profileOverlayLogoutBtn" onclick="logout();closeModal('profileOverlay')">Odhlásit se (přihlásit jiným účtem)</button>
   </div>
@@ -697,7 +752,10 @@
     <div class="players-box">
       <div class="p-title">Hráči (sleva se promítne do ceny)</div>
       <div id="playersList"></div>
-      <button class="add-player-btn" id="addPlayerBtn" onclick="addPlayerRow()">+ Přidat spoluhráče</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="add-player-btn" id="addPlayerBtn" onclick="addPlayerRow()">+ Přidat spoluhráče</button>
+        <button class="add-player-btn" id="sameLineupBtn" style="display:none;" onclick="useSameLineup()">🔁 Stejná sestava jako minule</button>
+      </div>
     </div>
     <div class="field" style="margin-top:6px;display:none;" id="racketsFieldWrap">
       <label>Potřebujete zapůjčit rakety?</label>
@@ -850,6 +908,16 @@
   </div>
 </div>
 
+<div class="overlay" id="waitlistOverlay">
+  <div class="modal" style="max-width:420px;">
+    <button class="modal-close" onclick="closeModal('waitlistOverlay')">×</button>
+    <h2>🎾 Termín je obsazený</h2>
+    <p class="modal-sub" id="waitlistSlotInfo"></p>
+    <p style="font-size:14px;color:#4A4840;line-height:1.6;">Přidej se na čekací listinu — pokud se termín uvolní (zrušení, vypršení nezaplacené rezervace), pošleme ti hned notifikaci. Kdo dřív rezervuje, ten hraje, nejde o žádnou rezervaci předem.</p>
+    <button class="btn btn-primary" style="width:100%;margin-top:10px;" onclick="joinWaitlist()">Přidat se na čekací listinu</button>
+    <div id="waitlistStatus" style="display:none;margin-top:10px;padding:10px 14px;border-radius:8px;font-size:14px;font-weight:600;"></div>
+  </div>
+</div>
 <div class="overlay" id="eventRegistrantsOverlay">
   <div class="modal" style="max-width:560px;">
     <button class="modal-close" onclick="closeModal('eventRegistrantsOverlay')">×</button>
@@ -1166,7 +1234,28 @@ function openEditProfile(){
   document.getElementById('profileName').value = profile.full_name || '';
   document.getElementById('profilePhone').value = profile.phone || '';
   populateLevelSelect('profileLevel', profile.level || 'C2', 'profileLevelDetail');
+  document.getElementById('voluntaryProfileFields').style.display = '';
+  document.getElementById('profileSide').value = profile.preferred_side || '';
+  document.getElementById('profileStyle').value = profile.play_style || '';
+  document.getElementById('profileLooking').value = profile.looking_for_players || '';
+  const avail = profile.availability && typeof profile.availability === 'object' ? profile.availability : {};
+  const availDays = Array.isArray(avail.days) ? avail.days : [];
+  const availTimes = Array.isArray(avail.times) ? avail.times : [];
+  document.querySelectorAll('.avail-day-check').forEach(cb=>{ cb.checked = availDays.includes(cb.value); });
+  document.querySelectorAll('.avail-time-check').forEach(cb=>{ cb.checked = availTimes.includes(cb.value); });
+  document.getElementById('availIrregular').checked = !!avail.irregular;
+  onAvailabilityChange();
+  const interests = Array.isArray(profile.interests) ? profile.interests : [];
+  document.querySelectorAll('.interest-check').forEach(cb=>{ cb.checked = interests.includes(cb.value); });
+  document.getElementById('profileNotifySuitable').checked = !!profile.notify_suitable_matches;
+  document.getElementById('profileVisibleSearch').checked = !!profile.visible_in_search;
   showModal('profileOverlay');
+}
+function onAvailabilityChange(){
+  const irregular = document.getElementById('availIrregular').checked;
+  document.getElementById('availDaysBox').style.opacity = irregular ? '0.4' : '1';
+  document.getElementById('availTimesBox').style.opacity = irregular ? '0.4' : '1';
+  document.querySelectorAll('.avail-day-check, .avail-time-check').forEach(cb=>{ cb.disabled = irregular; if(irregular) cb.checked=false; });
 }
 async function saveProfile(){
   const full_name = document.getElementById('profileName').value.trim();
@@ -1176,7 +1265,22 @@ async function saveProfile(){
   const phone = normalizeCzPhone(rawPhone);
   if(!phone){ toast('Telefon nevypadá jako platné číslo (např. 602 123 456 nebo +420 602 123 456)'); return; }
   if(editingExistingProfile){
-    const { data, error } = await sb.from('member_profiles').update({ full_name, phone, level }).eq('user_id', session.user.id).select().single();
+    const availDaysSel = [...document.querySelectorAll('.avail-day-check')].filter(cb=>cb.checked).map(cb=>cb.value);
+    const availTimesSel = [...document.querySelectorAll('.avail-time-check')].filter(cb=>cb.checked).map(cb=>cb.value);
+    const irregular = document.getElementById('availIrregular').checked;
+    const availability = (irregular || availDaysSel.length || availTimesSel.length)
+      ? { days: availDaysSel, times: availTimesSel, irregular } : null;
+    const interestsSel = [...document.querySelectorAll('.interest-check')].filter(cb=>cb.checked).map(cb=>cb.value);
+    const { data, error } = await sb.from('member_profiles').update({
+      full_name, phone, level,
+      preferred_side: document.getElementById('profileSide').value || null,
+      play_style: document.getElementById('profileStyle').value || null,
+      looking_for_players: document.getElementById('profileLooking').value || null,
+      availability,
+      interests: interestsSel.length ? interestsSel : null,
+      notify_suitable_matches: document.getElementById('profileNotifySuitable').checked,
+      visible_in_search: document.getElementById('profileVisibleSearch').checked
+    }).eq('user_id', session.user.id).select().single();
     if(error){ toast('Chyba: ' + error.message); return; }
     profile = data;
     editingExistingProfile = false;
@@ -1184,6 +1288,7 @@ async function saveProfile(){
     document.getElementById('profileOverlayLogoutBtn').style.display = '';
     document.getElementById('profileOverlayTitle').textContent = 'Dokončit registraci';
     document.getElementById('profileOverlaySub').textContent = 'Jméno a telefon potřebujeme kvůli rezervaci a QR platbě.';
+    document.getElementById('voluntaryProfileFields').style.display = 'none';
     closeModal('profileOverlay');
     renderHeader(); renderAll();
     toast('Profil uložen');
@@ -1644,6 +1749,56 @@ async function openReceptionRow(date, courtId, hour){
 }
 
 /* ================= KLIK DO SLOTU ================= */
+let waitlistTarget = null;
+function offerWaitlist(courtId, hour, existing){
+  const loc = activeLoc();
+  const court = loc.courts.find(c=>c.id===courtId);
+  waitlistTarget = { courtId, venueId: loc.id, date: selectedDate, startHour: existing.start_hour, endHour: existing.end_hour };
+  document.getElementById('waitlistSlotInfo').textContent = `${court.name} · ${fmtDate(selectedDate)}, ${formatHour(existing.start_hour)}–${formatHour(existing.end_hour)}`;
+  document.getElementById('waitlistStatus').style.display = 'none';
+  showModal('waitlistOverlay');
+}
+async function joinWaitlist(){
+  if(!waitlistTarget) return;
+  const statusEl = document.getElementById('waitlistStatus');
+  const { data: existingEntry } = await sb.from('waitlist_entries').select('id')
+    .eq('member_id', profile.user_id).eq('court_id', waitlistTarget.courtId).eq('date', waitlistTarget.date)
+    .eq('start_hour', waitlistTarget.startHour).eq('end_hour', waitlistTarget.endHour)
+    .in('status',['waiting','notified']).maybeSingle();
+  statusEl.style.display = '';
+  if(existingEntry){
+    statusEl.style.background='#FDECEC'; statusEl.style.color='#B00020';
+    statusEl.textContent = 'Na tenhle termín už na čekací listině jsi.';
+    return;
+  }
+  const { error } = await sb.from('waitlist_entries').insert({
+    club_id: CLUB_ID, venue_id: waitlistTarget.venueId, court_id: waitlistTarget.courtId,
+    date: waitlistTarget.date, start_hour: waitlistTarget.startHour, end_hour: waitlistTarget.endHour,
+    member_id: profile.user_id, status: 'waiting'
+  });
+  if(error){ statusEl.style.background='#FDECEC'; statusEl.style.color='#B00020'; statusEl.textContent = 'Chyba: '+error.message; return; }
+  statusEl.style.background='#E8F5E9'; statusEl.style.color='#1B5E20';
+  statusEl.textContent = '✅ Přidáno! Dáme ti vědět, jakmile se termín uvolní.';
+}
+async function renderMyWaitlist(){
+  const el = document.getElementById('myWaitlistContent');
+  if(!el || !profile) return;
+  const { data, error } = await sb.from('waitlist_entries').select('*, courts(name, venues(name))')
+    .eq('member_id', profile.user_id).in('status',['waiting','notified']).order('date');
+  if(error || !data || !data.length){ el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="section-title">🎾 Moje čekací listina</div>
+    <div class="card-list">${data.map(w=>`
+      <div class="card"><div class="info">
+        <b>${w.courts?.venues?.name||''} · ${w.courts?.name||''}</b>
+        <div class="meta">${fmtDate(w.date)}, ${formatHour(w.start_hour)}–${formatHour(w.end_hour)} ${w.status==='notified'?' · <b style="color:#1B5E20;">uvolnilo se, rezervuj!</b>':' · čekáme na uvolnění'}</div>
+      </div><button class="btn btn-sm btn-ghost" onclick="leaveWaitlist('${w.id}')">Odebrat</button></div>
+    `).join('')}</div>`;
+}
+async function leaveWaitlist(id){
+  await sb.from('waitlist_entries').delete().eq('id', id);
+  await renderMyWaitlist();
+}
 async function openSlot(courtId, hour){
   const loc = activeLoc();
   const existing = findReservationAt(courtId, hour);
@@ -1653,6 +1808,7 @@ async function openSlot(courtId, hour){
   if(existing){
     if(profile && existing.member_id===profile.user_id){ activeReservationId=existing.id; await openPaymentModalFor(existing); }
     else if(existing.is_open_match){ joinOpenMatch(existing.id); }
+    else if(profile && !['club_blocked'].includes(existing.status)){ offerWaitlist(courtId, hour, existing); }
     return;
   }
   if(!session){ toast('Nejdřív se přihlas'); showModal('loginOverlay'); return; }
@@ -1729,7 +1885,25 @@ function openBookingModal({courtId, startHour, adminMode}){
 
   renderPlayersList();
   document.getElementById('confirmBookingBtn').textContent = adminMode ? 'Vytvořit rezervaci' : 'Vytvořit rezervaci a zobrazit QR';
+  document.getElementById('sameLineupBtn').style.display = 'none';
+  lastLineupCache = null;
+  if(!adminMode && profile){
+    sb.from('reservations').select('players').eq('member_id', profile.user_id).eq('status','paid_confirmed')
+      .not('players','is', null).order('created_at',{ascending:false}).limit(1).then(({data})=>{
+        const prevPlayers = data && data[0] && Array.isArray(data[0].players) ? data[0].players.filter(p=>!p.isOrganizer) : [];
+        if(prevPlayers.length){ lastLineupCache = prevPlayers; document.getElementById('sameLineupBtn').style.display = ''; }
+      });
+  }
   showModal('bookingOverlay');
+}
+let lastLineupCache = null;
+function useSameLineup(){
+  if(!lastLineupCache) return;
+  const organizer = booking.players.find(p=>p.isOrganizer);
+  booking.players = [organizer, ...lastLineupCache.map(p=>({...p}))];
+  renderPlayersList();
+  updatePriceBox();
+  toast('Sestava doplněna — zkontroluj slevy, mohly se mezitím změnit');
 }
 function getValidStarts(loc, courtId){
   return slotStarts(loc).filter(s => computeMaxDuration(loc, courtId, s) >= loc.minDuration);
@@ -2190,6 +2364,7 @@ async function confirmPaymentCascade(reservationId, confirmedBy){
 async function renderMine(){
   const el = document.getElementById('mineList');
   if(!profile){ el.innerHTML = emptyState('Nejsi přihlášen', 'Přihlas se a uvidíš svoje rezervace zde.'); return; }
+  await renderMyWaitlist();
   el.innerHTML = 'Načítání…';
   const { data, error } = await sb.from('reservations').select('*').eq('member_id', profile.user_id).order('date',{ascending:false});
   if(error){ el.innerHTML = emptyState('Chyba', error.message); return; }
@@ -2227,22 +2402,59 @@ async function renderMine(){
     cancelled_by_admin: { label: 'Zrušeno klubem', cls: 'blocked' },
     club_blocked: { label: 'Blokace klubu', cls: 'blocked' },
   };
+  const todayStr = todayISO();
   const singleCards = single.map(r => {
     const court = findCourt(r.court_id);
     const statusInfo = RESERVATION_STATUS_LABELS[r.status] || { label: r.status, cls: 'blocked' };
     const statusHtml = `<span class="status-pill ${statusInfo.cls}">${statusInfo.label}</span>`;
     const playersNote = r.players && r.players.length>1 ? ` · ${r.players.length} hráči` : '';
+    const canInvite = r.status==='paid_confirmed' && r.date >= todayStr && !r.is_open_match;
     return `<div class="card"><div class="info">
         <b>${court.locationName} · ${court.name}</b>
         <div class="meta">${fmtDate(r.date)} · ${formatHour(r.start_hour)}–${formatHour(r.end_hour)} · ${r.amount_due} Kč${playersNote} ${r.is_open_match?'· 🔍 Open Match':''}</div>
       </div><div class="actions">
         ${statusHtml}
         ${r.status==='pending_payment' ? `<button class="btn btn-sm btn-ghost" onclick='openPaymentModalFor(${JSON.stringify(r)})'>Zaplatit</button>` : ''}
+        ${canInvite ? `<button class="btn btn-sm btn-ghost" onclick="createPlayerInvite('${r.id}')">👥 Pozvat spoluhráče</button>` : ''}
         ${['pending_payment','paid_confirmed'].includes(r.status) ? `<a class="meta" href="tel:${CLUB_PHONE.replace(/\s/g,'')}" style="text-decoration:underline;">Zrušení: zavolej ${CLUB_PHONE}</a>` : ''}
       </div></div>`;
   }).join('');
 
   el.innerHTML = seriesCards + singleCards || emptyState('Zatím žádné aktivní rezervace', 'Vyber si hřiště v Rezervacích.');
+}
+async function createPlayerInvite(reservationId){
+  const { data: invite, error } = await sb.from('player_invites').insert({ reservation_id: reservationId, invited_by: profile.user_id }).select().single();
+  if(error){ toast('Chyba: '+error.message); return; }
+  const url = `${location.origin}${location.pathname}#invite=${invite.id}`;
+  const shareText = `Zahraj si se mnou padel! Klikni a připoj se k rezervaci: ${url}`;
+  if(navigator.share){
+    try { await navigator.share({ text: shareText, url }); return; } catch(e){}
+  }
+  try {
+    await navigator.clipboard.writeText(shareText);
+    toast('Odkaz zkopírován — pošli ho spoluhráči (WhatsApp, SMS...)');
+  } catch(e){
+    prompt('Zkopíruj odkaz a pošli spoluhráči:', shareText);
+  }
+}
+async function claimPlayerInvite(inviteId){
+  if(!session){ toast('Nejdřív se přihlas, pak odkaz otevři znovu'); showModal('loginOverlay'); return; }
+  if(!profile){ toast('Nejdřív dokonči registraci, pak odkaz otevři znovu'); return; }
+  const { data: invite, error: e1 } = await sb.from('player_invites').select('*, reservations(*)').eq('id', inviteId).maybeSingle();
+  if(e1 || !invite){ toast('Tahle pozvánka už neplatí'); return; }
+  if(invite.claimed_by){ toast(invite.claimed_by===profile.user_id ? 'Už jsi k téhle rezervaci přiřazený.' : 'Tuhle pozvánku už někdo jiný přijal.'); return; }
+  const res = invite.reservations;
+  if(!res || res.status!=='paid_confirmed'){ toast('Rezervace už není aktivní'); return; }
+  const currentPlayers = Array.isArray(res.players) ? res.players : [];
+  if(currentPlayers.some(p=>p.memberId===profile.user_id)){ toast('Už jsi u téhle rezervace uvedený.'); return; }
+  if(currentPlayers.length >= (findCourt(res.court_id).maxPlayers || 4)){ toast('Sestava je už plná.'); return; }
+  const newPlayers = [...currentPlayers, { name: profile.full_name, discount: profile.discount_percent||0, isOrganizer:false, memberId: profile.user_id }];
+  const { error: e2 } = await sb.from('reservations').update({ players: newPlayers }).eq('id', res.id);
+  if(e2){ toast('Chyba: '+e2.message); return; }
+  await sb.from('player_invites').update({ claimed_by: profile.user_id, claimed_at: new Date().toISOString() }).eq('id', inviteId);
+  toast(`✅ Přidáno! Hraješ ${fmtDate(res.date)} v ${formatHour(res.start_hour)}`);
+  history.replaceState(null, '', location.pathname);
+  switchView('mine');
 }
 async function cancelReservation(id){
   const status = (isAdmin() || (profile && profile.role==='recepce')) ? 'cancelled_by_admin' : 'cancelled_by_user';
@@ -4088,6 +4300,7 @@ async function renderAdminDashboard(el){
 
 async function renderAll(){
   renderHeader();
+  renderProfileNudge();
   if(currentLocationId) await renderGrid();
   const activeTab = document.querySelector('#tabs button.active')?.dataset.view;
   if(activeTab==='dashboard' || !activeTab) await renderDashboard();
@@ -4095,6 +4308,28 @@ async function renderAll(){
   if(activeTab==='openmatches') await renderOpen();
   if(activeTab==='calendar') await renderCalendar();
   if(activeTab==='admin' && isAdmin()) await renderAdmin();
+}
+function hasVoluntaryProfileData(p){
+  return !!(p.preferred_side || p.play_style || p.looking_for_players || p.availability || (p.interests && p.interests.length));
+}
+function renderProfileNudge(){
+  const el = document.getElementById('profileNudgeCard');
+  if(!el) return;
+  if(!profile || hasVoluntaryProfileData(profile) || profile.profile_nudge_dismissed_at){ el.innerHTML=''; return; }
+  el.innerHTML = `
+    <div class="card" style="background:#F7F5EE;border:1px solid var(--line);margin-bottom:16px;display:block;padding:14px 16px;">
+      <b style="font-size:14.5px;">Chybí ti někdy čtvrtý do hry?</b>
+      <p style="font-size:13px;color:#4A4840;margin:4px 0 10px;">Doplň svůj herní profil, ať se můžete snáz najít.</p>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-sm btn-dark" onclick="openEditProfile()">Doplnit za minutu</button>
+        <button class="btn btn-sm btn-ghost" onclick="dismissProfileNudge()">Teď ne</button>
+      </div>
+    </div>`;
+}
+async function dismissProfileNudge(){
+  document.getElementById('profileNudgeCard').innerHTML = '';
+  const { data } = await sb.from('member_profiles').update({ profile_nudge_dismissed_at: new Date().toISOString() }).eq('user_id', session.user.id).select().single();
+  if(data) profile = data;
 }
 
 /* ================= PUSH NOTIFIKACE ================= */
@@ -4153,6 +4388,10 @@ async function enablePushNotifications(){
   const { data: { session: s } } = await sb.auth.getSession();
   session = s;
   if(session) await loadProfile();
+
+  const inviteMatch = location.hash.match(/invite=([0-9a-f-]{36})/i);
+  if(inviteMatch && profile){ await claimPlayerInvite(inviteMatch[1]); }
+  else if(inviteMatch && !session){ toast('Přihlas se, ať se můžeš připojit ke hře'); showModal('loginOverlay'); }
 
   if(isAdmin() && !urlVenue && !currentLocationId){ showAllVenuesGrid(); }
   else if(profile && profile.role==='recepce' && profile.scoped_venue_id && !urlVenue && !currentLocationId){
