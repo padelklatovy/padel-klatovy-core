@@ -689,7 +689,13 @@
       </div>
       <div class="field"><label>Kdy obvykle můžeš hrát?</label>
         <div id="availDaysBox" style="display:flex;flex-wrap:wrap;gap:8px;font-size:13px;margin-bottom:8px;">
-          ${[['po','Po'],['ut','Út'],['st','St'],['ct','Čt'],['pa','Pá'],['so','So'],['ne','Ne']].map(([v,l])=>`<label style="display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;"><input type="checkbox" class="avail-day-check" value="${v}" onchange="onAvailabilityChange()"> ${l}</label>`).join('')}
+          <label style="display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;"><input type="checkbox" class="avail-day-check" value="po" onchange="onAvailabilityChange()"> Po</label>
+          <label style="display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;"><input type="checkbox" class="avail-day-check" value="ut" onchange="onAvailabilityChange()"> Út</label>
+          <label style="display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;"><input type="checkbox" class="avail-day-check" value="st" onchange="onAvailabilityChange()"> St</label>
+          <label style="display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;"><input type="checkbox" class="avail-day-check" value="ct" onchange="onAvailabilityChange()"> Čt</label>
+          <label style="display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;"><input type="checkbox" class="avail-day-check" value="pa" onchange="onAvailabilityChange()"> Pá</label>
+          <label style="display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;"><input type="checkbox" class="avail-day-check" value="so" onchange="onAvailabilityChange()"> So</label>
+          <label style="display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;"><input type="checkbox" class="avail-day-check" value="ne" onchange="onAvailabilityChange()"> Ne</label>
         </div>
         <div id="availTimesBox" style="display:flex;flex-wrap:wrap;gap:10px;font-size:13px;">
           <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" class="avail-time-check" value="rano" onchange="onAvailabilityChange()"> Ráno (do 12:00)</label>
@@ -701,7 +707,10 @@
       </div>
       <div class="field"><label>Co tě u nás zajímá?</label>
         <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:13px;">
-          ${[['volne_hry','Volné hry'],['treninky','Tréninky'],['turnaje','Turnaje'],['liga','Liga']].map(([v,l])=>`<label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" class="interest-check" value="${v}"> ${l}</label>`).join('')}
+          <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" class="interest-check" value="volne_hry"> Volné hry</label>
+          <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" class="interest-check" value="treninky"> Tréninky</label>
+          <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" class="interest-check" value="turnaje"> Turnaje</label>
+          <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" class="interest-check" value="liga"> Liga</label>
         </div>
       </div>
       <div class="field" style="background:#F7F5EE;border-radius:10px;padding:10px 12px;">
@@ -1310,7 +1319,11 @@ function renderHeader(){
   if(!session){ el.innerHTML = `<button class="btn btn-primary btn-sm" onclick="showModal('loginOverlay')">Přihlásit se</button>`; }
   else if(!profile){ el.innerHTML = `<span style="font-size:13px;">Dokonči registraci…</span>`; }
   else {
+    const needsProfile = !hasVoluntaryProfileData(profile);
     el.innerHTML = `
+      <button class="btn btn-sm" style="position:relative;background:#fff;border:1px solid rgba(255,255,255,.3);color:var(--ink);margin-right:6px;" onclick="openEditProfile()" title="Upravit profil">
+        ✏️ Profil${needsProfile ? '<span style="position:absolute;top:-4px;right:-4px;width:9px;height:9px;background:var(--red);border-radius:50%;border:2px solid #fff;"></span>' : ''}
+      </button>
       <div class="profile-pill" onclick="toggleProfileMenu(event)">
         <span class="dot"></span> ${profile.full_name.split(' ')[0]} ${isAdmin()?'· admin':''}
         <div class="profile-menu" id="profileMenu">
