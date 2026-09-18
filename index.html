@@ -3635,6 +3635,20 @@ async function createClubEvent(){
 }
 
 /* ================= ADMIN: ČLENOVÉ (skutečná tabulka) ================= */
+const SIDE_LABELS = { leva:'Vlevo', prava:'Vpravo', obe:'Obě strany' };
+const STYLE_LABELS = { radost:'Hlavně pro radost', soutezne:'Baví ho/ji soutěžit', oboji:'Obojí' };
+const LOOKING_LABELS = { ano:'Ano, rád/a pozná další hráče', obcas:'Občas, když chybí hráč', ne:'Hraje se svou partou' };
+const INTEREST_LABELS = { volne_hry:'Volné hry', treninky:'Tréninky', turnaje:'Turnaje', liga:'Liga' };
+const AVAIL_DAY_LABELS = { po:'Po', ut:'Út', st:'St', ct:'Čt', pa:'Pá', so:'So', ne:'Ne' };
+const AVAIL_TIME_LABELS = { rano:'ráno', odpoledne:'odpoledne', vecer:'večer' };
+function describeAvailability(a){
+  if(!a) return '—';
+  if(a.irregular) return 'Má to pokaždé jinak';
+  const days = (a.days||[]).map(d=>AVAIL_DAY_LABELS[d]||d).join(', ');
+  const times = (a.times||[]).map(t=>AVAIL_TIME_LABELS[t]||t).join(', ');
+  if(!days && !times) return '—';
+  return `${days||'kterýkoliv den'} · ${times||'kterýkoliv čas'}`;
+}
 let membersCache = [];
 async function renderMembers(){
   const { data, error } = await sb.from('member_profiles').select('*').order('full_name');
@@ -3747,6 +3761,18 @@ function openMemberDetail(userId){
     </div>
     <div id="editLevelDetail" style="margin:-8px 0 14px;"></div>
     <p style="font-size:12px;color:#6E6E6E;margin:-8px 0 14px;">Role v appce = kdo vidí Admin sekci. Členská úroveň = kdo má jakou slevu na rezervace. Dvě různé věci, nastavují se zvlášť.</p>
+    ${hasVoluntaryProfileData(m) ? `
+    <div class="section-title" style="font-size:13px;">🎾 Herní profil (co si sám/sama doplnil/a)</div>
+    <div class="price-box" style="margin-top:0;">
+      <div class="price-row"><span>Herní strana</span><span>${SIDE_LABELS[m.preferred_side] || '—'}</span></div>
+      <div class="price-row"><span>Styl hry</span><span>${STYLE_LABELS[m.play_style] || '—'}</span></div>
+      <div class="price-row"><span>Chce hrát s novými lidmi</span><span>${LOOKING_LABELS[m.looking_for_players] || '—'}</span></div>
+      <div class="price-row"><span>Dostupnost</span><span>${describeAvailability(m.availability)}</span></div>
+      <div class="price-row"><span>Zájmy</span><span>${(m.interests||[]).map(i=>INTEREST_LABELS[i]||i).join(', ') || '—'}</span></div>
+      <div class="price-row"><span>Chce upozornění na vhodnou hru</span><span>${m.notify_suitable_matches ? 'Ano' : 'Ne'}</span></div>
+      <div class="price-row"><span>Viditelný v hledání spoluhráčů</span><span>${m.visible_in_search ? 'Ano' : 'Ne'}</span></div>
+    </div>
+    ` : `<p style="font-size:12px;color:#948e83;margin:-6px 0 14px;">🎾 Herní profil zatím nevyplnil/a.</p>`}
     <div class="field" style="margin-bottom:14px;">
       <label>Interní poznámka (jen pro adminy, člen ji nevidí)</label>
       <div style="display:flex;gap:8px;">
@@ -4227,7 +4253,7 @@ async function renderAdminDashboard(el){
   const { count: refundCount } = await sb.from('reservations').select('id',{count:'exact',head:true}).eq('refund_status','pending');
   const { count: unmatchedCount } = await sb.from('unmatched_fio_transactions').select('id',{count:'exact',head:true}).eq('status','pending');
 
-  const { data: levelRows } = await sb.from('member_profiles').select('full_name, level, role').eq('role','member');
+  const { data: levelRows } = await sb.from('member_profiles').select('full_name, level, role, play_style').eq('role','member');
   const { data: activityRows } = await sb.rpc('get_level_activity');
   const { data: pairRows } = await sb.rpc('get_frequent_pairs', { limit_n: 12 });
 
@@ -4251,6 +4277,19 @@ async function renderAdminDashboard(el){
     const label = lv==='Nevyplněno' ? 'Nevyplněno' : levelLabelOf(lv);
     return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
       <div style="width:170px;font-size:12.5px;color:#4A4840;flex:none;">${label}</div>
+      <div style="flex:1;background:#F0EEE6;border-radius:6px;height:18px;overflow:hidden;"><div style="width:${pct}%;background:var(--ink);height:100%;"></div></div>
+      <div style="width:28px;text-align:right;font-size:12.5px;font-weight:600;flex:none;">${n}</div>
+    </div>`;
+  }).join('');
+
+  const styleCounts = { radost:0, soutezne:0, oboji:0, nevyplneno:0 };
+  (levelRows||[]).forEach(m=>{ styleCounts[m.play_style && styleCounts[m.play_style]!==undefined ? m.play_style : 'nevyplneno']++; });
+  const styleLabelsShort = { radost:'🙂 Pro radost („takoví")', soutezne:'🔥 Soutěživí („makoví")', oboji:'⚖️ Obojí', nevyplneno:'Nevyplněno' };
+  const styleMax = Math.max(1, ...Object.values(styleCounts));
+  const styleDistHtml = Object.keys(styleLabelsShort).map(k=>{
+    const n = styleCounts[k]; const pct = Math.round(n/styleMax*100);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <div style="width:190px;font-size:12.5px;color:#4A4840;flex:none;">${styleLabelsShort[k]}</div>
       <div style="flex:1;background:#F0EEE6;border-radius:6px;height:18px;overflow:hidden;"><div style="width:${pct}%;background:var(--ink);height:100%;"></div></div>
       <div style="width:28px;text-align:right;font-size:12.5px;font-weight:600;flex:none;">${n}</div>
     </div>`;
@@ -4289,6 +4328,10 @@ async function renderAdminDashboard(el){
 
     <div class="section-title">🎾 Komunita — hráčské úrovně</div>
     <div class="card" style="display:block;">${levelDistHtml}</div>
+
+    <div class="section-title">🎾 Komunita — pro radost vs. soutěživí</div>
+    <div class="card" style="display:block;">${styleDistHtml}</div>
+    <p style="font-size:11.5px;color:#948e83;margin:6px 0 0;">Jen z toho, co si lidi sami dobrovolně vyplnili v profilu — spousta lidí to zatím nemá vyplněné.</p>
 
     <div class="section-title">🎾 Komunita — aktivita podle úrovně</div>
     ${activityHtml}
