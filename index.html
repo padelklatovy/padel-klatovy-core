@@ -4098,7 +4098,7 @@ async function renderAll(){
 }
 
 /* ================= PUSH NOTIFIKACE ================= */
-const VAPID_PUBLIC_KEY = 'BEBxA769m88Yjer2RUMmvZVCWGcuFB3MxFqLD8laCIX4H_pjRJNOaxh9Ywy3BBXvxaBhwNq6hFnTQ3Q8rysy6tE';
+const VAPID_PUBLIC_KEY = 'BDtZ8ZLVJnsUJdn0oO0E1GRr2RNhybji4qU9dszy1K7DitSvAtk7ecMKFpWTZSLotnI4zIuNcUQM1Q9IxL3dqSo';
 async function initPushSupport(){
   if(!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try { await navigator.serviceWorker.register('/padel-klatovy-core/sw.js'); }
@@ -4119,9 +4119,10 @@ async function enablePushNotifications(){
   if(perm !== 'granted'){ toast('Notifikace nepovoleny'); return; }
   const reg = await navigator.serviceWorker.ready;
   let sub = await reg.pushManager.getSubscription();
-  if(!sub){
-    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
-  }
+  // Vždy odhlásit staré přihlášení a založit nové — jinak by si prohlížeč
+  // podržel odběr navázaný na dřívější (třeba už neplatný) VAPID klíč.
+  if(sub){ try { await sub.unsubscribe(); } catch(e){} }
+  sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
   const subJson = sub.toJSON();
   const { error } = await sb.from('push_subscriptions').upsert(
     { user_id: profile.user_id, endpoint: subJson.endpoint, keys: subJson.keys },
