@@ -3241,76 +3241,109 @@ async function renderOnsiteCheck(){
   el.innerHTML = 'Načítání…';
   const { from, to } = onsiteCheckPeriodRange();
 
-  const { data: groupRes, error: e1 } = await sb.from('reservations').select('date, expected_onsite_amount, series_name')
+  const { data: groupRes, error: e1 } = await sb.from('reservations').select('date, expected_onsite_amount, series_name, venue_id')
     .not('expected_onsite_amount','is',null).gt('expected_onsite_amount', 0)
     .eq('status','paid_confirmed').gte('date', from).lte('date', to);
   if(e1){ el.innerHTML = 'Chyba: '+e1.message; return; }
 
-  const { data: kurtPayments, error: e2 } = await sb.from('onsite_bar_payments').select('transaction_date, amount')
+  const { data: kurtPayments, error: e2 } = await sb.from('onsite_bar_payments').select('transaction_date, amount, venue_id')
     .eq('payment_category','kurt').gte('transaction_date', from).lte('transaction_date', to);
   if(e2){ el.innerHTML = 'Chyba: '+e2.message; return; }
 
-  const minimumTotal = (groupRes||[]).reduce((s,r)=>s+Number(r.expected_onsite_amount||0),0);
-  const actualTotal = (kurtPayments||[]).reduce((s,p)=>s+Number(p.amount||0),0);
-  const diff = actualTotal - minimumTotal;
+  const venueName = id => (Object.values(venuesConfig).find(v=>v.id===id) || {}).name || 'Neznámý areál';
 
-  // Dny, kdy nějaká sledovaná skupina hrála, ale ten den nedorazila ŽÁDNÁ platba VS 406 (kurt) — nejsilnější signál,
-  // funguje bez ohledu na to, jestli přišel člen nebo nečlen (0 Kč je vždy podezřelé, ať je minimum jakékoliv).
-  const paidDates = new Set((kurtPayments||[]).map(p=>p.transaction_date));
-  const groupDatesMissing = {};
-  (groupRes||[]).forEach(r=>{
-    if(!paidDates.has(r.date)){
-      (groupDatesMissing[r.date] ||= []).push(r.series_name || 'Skupina');
-    }
-  });
-  const missingDays = Object.keys(groupDatesMissing).sort();
+  // Důležité: VS 406 (Klatovy) a VS 408 (Brandýs) mají stejnou kategorii 'kurt',
+  // rozlišuje je jen venue_id — proto se tu VŠECHNO počítá per-areál, jinak by
+  // platba za Brandýs mohla skrýt nedoplatek v Klatovech (a naopak).
+  const venueIds = [...new Set([...(groupRes||[]).map(r=>r.venue_id), ...(kurtPayments||[]).map(p=>p.venue_id)].filter(Boolean))];
 
-  const statusColor = diff >= 0 ? '#1B5E20' : '#B00020';
-  const statusBg = diff >= 0 ? '#E8F5E9' : '#FDECEC';
+  const perVenue = venueIds.map(vid=>{
+    const groups = (groupRes||[]).filter(r=>r.venue_id===vid);
+    const payments = (kurtPayments||[]).filter(p=>p.venue_id===vid);
+    const minimumTotal = groups.reduce((s,r)=>s+Number(r.expected_onsite_amount||0),0);
+    const actualTotal = payments.reduce((s,p)=>s+Number(p.amount||0),0);
+    const paidDates = new Set(payments.map(p=>p.transaction_date));
+    const missing = {};
+    groups.forEach(r=>{ if(!paidDates.has(r.date)) (missing[r.date] ||= []).push(r.series_name || 'Skupina'); });
+    return { name: venueName(vid), minimumTotal, actualTotal, diff: actualTotal-minimumTotal, missing, hasGroups: groups.length>0 };
+  }).filter(v=>v.hasGroups); // areály bez sledovaných skupin (zatím Brandýs) se nezobrazují, není co kontrolovat
 
-  el.innerHTML = `
+  el.innerHTML = perVenue.length ? perVenue.map(v=>{
+    const statusColor = v.diff >= 0 ? '#1B5E20' : '#B00020';
+    const statusBg = v.diff >= 0 ? '#E8F5E9' : '#FDECEC';
+    const missingDays = Object.keys(v.missing).sort();
+    return `
+    <h3 style="font-size:14px;margin:16px 0 8px;">${v.name}</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px;">
-      <div class="card"><div class="info"><b>Minimum mělo přijít</b><div style="font-size:24px;font-weight:700;margin-top:4px;">${minimumTotal} Kč</div><div class="meta" style="margin-top:2px;">cena pro člena u sledovaných skupin</div></div></div>
-      <div class="card"><div class="info"><b>Přišlo přes VS 406 (kurt)</b><div style="font-size:24px;font-weight:700;margin-top:4px;">${actualTotal} Kč</div></div></div>
-      <div class="card" style="background:${statusBg};"><div class="info"><b>Rozdíl oproti minimu</b><div style="font-size:24px;font-weight:700;margin-top:4px;color:${statusColor};">${diff>=0?'+':''}${diff} Kč</div></div></div>
+      <div class="card"><div class="info"><b>Minimum mělo přijít</b><div style="font-size:24px;font-weight:700;margin-top:4px;">${v.minimumTotal} Kč</div><div class="meta" style="margin-top:2px;">cena pro člena u sledovaných skupin</div></div></div>
+      <div class="card"><div class="info"><b>Přišlo na místě (kurt)</b><div style="font-size:24px;font-weight:700;margin-top:4px;">${v.actualTotal} Kč</div></div></div>
+      <div class="card" style="background:${statusBg};"><div class="info"><b>Rozdíl oproti minimu</b><div style="font-size:24px;font-weight:700;margin-top:4px;color:${statusColor};">${v.diff>=0?'+':''}${v.diff} Kč</div></div></div>
     </div>
     ${missingDays.length ? `
-      <p style="font-weight:600;margin-bottom:6px;color:#B00020;">⚠️ Dny, kdy skupina hrála, ale nedorazila žádná platba VS 406:</p>
+      <p style="font-weight:600;margin-bottom:6px;color:#B00020;">⚠️ Dny, kdy skupina hrála, ale nedorazila žádná platba na místě:</p>
       <table class="admin-table"><thead><tr><th>Datum</th><th>Skupina(y)</th></tr></thead><tbody>
-        ${missingDays.map(d=>`<tr><td>${d}</td><td>${[...new Set(groupDatesMissing[d])].join(', ')}</td></tr>`).join('')}
+        ${missingDays.map(d=>`<tr><td>${d}</td><td>${[...new Set(v.missing[d])].join(', ')}</td></tr>`).join('')}
       </tbody></table>
-    ` : `<p style="color:#1B5E20;font-weight:600;">✅ Žádný den bez platby — ve všech dnech, kdy sledovaná skupina hrála, dorazila aspoň nějaká platba VS 406.</p>`}
-    <p style="font-size:12px;color:#948e83;margin-top:10px;">Kontroluje jen skupiny s vyplněným minimem (sekce Série výše). Je to spodní hranice (cena pro člena) — pokud přijde nečlen a zaplatí víc, rozdíl vyjde kladně a nic to nerozhodí. Nerozlišuje jednotlivce, jen souhrn za období a "žádná platba ten den".</p>
-  `;
+    ` : `<p style="color:#1B5E20;font-weight:600;">✅ Žádný den bez platby.</p>`}
+    `;
+  }).join('') + `<p style="font-size:12px;color:#948e83;margin-top:10px;">Kontroluje jen skupiny s vyplněným minimem (sekce Série výše), počítáno vždy zvlášť za každý areál. Je to spodní hranice (cena pro člena) — pokud přijde nečlen a zaplatí víc, rozdíl vyjde kladně a nic to nerozhodí.</p>`
+  : `<p style="color:#948e83;">Žádné sledované skupiny (s vyplněným minimem) v tomhle období.</p>`;
 }
 async function renderRevenueBreakdown(){
   const el = document.getElementById('revenueBreakdown');
   if(!el) return;
   el.innerHTML = 'Načítání…';
   const { from, to } = revenuePeriodRange();
-  const { data: reservations, error: e1 } = await sb.from('reservations').select('venue_id, amount_due').eq('status','paid_confirmed').gte('date', from).lte('date', to);
+  const { data: reservations, error: e1 } = await sb.from('reservations').select('venue_id, amount_due, expected_onsite_amount').eq('status','paid_confirmed').gte('date', from).lte('date', to);
   if(e1){ el.innerHTML = 'Chyba: '+e1.message; return; }
-  const { data: barPayments, error: e2 } = await sb.from('onsite_bar_payments').select('amount').gte('transaction_date', from).lte('transaction_date', to);
+  const { data: barPayments, error: e2 } = await sb.from('onsite_bar_payments').select('amount, payment_category, venue_id').gte('transaction_date', from).lte('transaction_date', to);
   if(e2){ el.innerHTML = 'Chyba: '+e2.message; return; }
+
+  const venueName = id => (Object.values(venuesConfig).find(v=>v.id===id) || {}).name || 'Neznámý areál';
+
   const byVenue = {};
   (reservations||[]).forEach(r=>{
-    const loc = Object.values(venuesConfig).find(v=>v.id===r.venue_id);
-    const name = loc ? loc.name : 'Neznámý areál';
+    const name = venueName(r.venue_id);
     if(!byVenue[name]) byVenue[name] = { count:0, sum:0 };
     byVenue[name].count++; byVenue[name].sum += Number(r.amount_due||0);
   });
   const venueRows = Object.entries(byVenue).sort((a,b)=>b[1].sum-a[1].sum);
   const venueTotal = venueRows.reduce((s,[,v])=>s+v.sum, 0);
   const venueCount = venueRows.reduce((s,[,v])=>s+v.count, 0);
-  const barSum = (barPayments||[]).reduce((s,p)=>s+Number(p.amount||0),0);
-  const barCount = (barPayments||[]).length;
+
+  // Appka zatím oficiálně nesmí prodávat občerstvení — VS 407 se tedy nikde
+  // NEOZNAČUJE jako "občerstvení", jen neutrálně podle VS a areálu. Navenek
+  // (export pro účetnictví) se to všechno tváří jako pronájem kurtu.
+  const barByKey = {};
+  (barPayments||[]).forEach(p=>{
+    const key = `${p.variable_symbol||'?'}|${p.venue_id || ''}`;
+    if(!barByKey[key]) barByKey[key] = { vs: p.variable_symbol||'?', venue: p.venue_id ? venueName(p.venue_id) : null, count:0, sum:0 };
+    barByKey[key].count++; barByKey[key].sum += Number(p.amount||0);
+  });
+  const barRows = Object.values(barByKey).sort((a,b)=>(a.venue||'').localeCompare(b.venue||'')||a.vs.localeCompare(b.vs));
+  const barCatLabel = r => `Na místě — VS ${r.vs}`;
+  const barTotal = barRows.reduce((s,r)=>s+r.sum,0);
+  const barCount = barRows.reduce((s,r)=>s+r.count,0);
+
+  const onlineRes = (reservations||[]).filter(r=>Number(r.amount_due)>0 && r.expected_onsite_amount==null);
+  const freeRes = (reservations||[]).filter(r=>Number(r.amount_due)===0);
+  const onlineSum = onlineRes.reduce((s,r)=>s+Number(r.amount_due||0),0);
+
   el.innerHTML = `
     <table class="admin-table">
       <tr><th>Areál</th><th>Počet rezervací</th><th>Tržba</th></tr>
       ${venueRows.map(([name,v])=>`<tr><td>${name}</td><td>${v.count}</td><td>${v.sum} Kč</td></tr>`).join('') || `<tr><td colspan="3" style="padding:16px;color:#948e83;">Žádné zaplacené rezervace v tomto období</td></tr>`}
       <tr style="font-weight:700;"><td>Rezervace celkem</td><td>${venueCount}</td><td>${venueTotal} Kč</td></tr>
-      <tr><td>🍹 Platby na baru (VS 406)</td><td>${barCount}</td><td>${barSum} Kč</td></tr>
-      <tr style="font-weight:700;border-top:2px solid var(--line);"><td>Tržba celkem</td><td>${venueCount+barCount}</td><td>${venueTotal+barSum} Kč</td></tr>
+      ${barRows.map(r=>`<tr><td>${barCatLabel(r)}${r.venue?` — ${r.venue}`:''}</td><td>${r.count}</td><td>${r.sum} Kč</td></tr>`).join('')}
+      <tr style="font-weight:700;border-top:2px solid var(--line);"><td>Tržba celkem</td><td>${venueCount+barCount}</td><td>${venueTotal+barTotal} Kč</td></tr>
+    </table>
+
+    <div class="section-title" style="font-size:14px;margin-top:18px;">Podle zdroje platby</div>
+    <table class="admin-table">
+      <tr><th>Zdroj</th><th>Počet</th><th>Tržba</th></tr>
+      <tr><td>💳 Online (běžná rezervace přes appku)</td><td>${onlineRes.length}</td><td>${onlineSum} Kč</td></tr>
+      ${barRows.map(r=>`<tr><td>${barCatLabel(r)}${r.venue?` — ${r.venue}`:''}</td><td>${r.count}</td><td>${r.sum} Kč</td></tr>`).join('')}
+      <tr><td>🆓 Zdarma (trenéři, sólo tréninky, akce zdarma)</td><td>${freeRes.length}</td><td>0 Kč</td></tr>
     </table>`;
 }
 async function renderAdmin(){
