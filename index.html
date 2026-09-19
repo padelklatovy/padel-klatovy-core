@@ -485,7 +485,37 @@
           <option value="padel-brandys">Padel Brandýs</option>
         </select>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('memberSearch').value='';document.getElementById('memberFilterTier').value='all';document.getElementById('memberFilterActivity').value='all';document.getElementById('memberFilterLevel').value='all';document.getElementById('memberFilterVenue').value='all';paintMembersTable()">Zrušit filtry</button>
+      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Chce hrát s novými</label>
+        <select id="memberFilterLooking" onchange="paintMembersTable()">
+          <option value="all">Všichni</option>
+          <option value="ano">Ano</option>
+          <option value="obcas">Občas</option>
+          <option value="ne">Hraje se svou partou</option>
+          <option value="none">Nevyplněno</option>
+        </select>
+      </div>
+      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Styl hry</label>
+        <select id="memberFilterStyle" onchange="paintMembersTable()">
+          <option value="all">Všechny</option>
+          <option value="radost">Pro radost</option>
+          <option value="soutezne">Soutěživí</option>
+          <option value="oboji">Obojí</option>
+          <option value="none">Nevyplněno</option>
+        </select>
+      </div>
+      <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Dostupný v den</label>
+        <select id="memberFilterDay" onchange="paintMembersTable()">
+          <option value="all">Kterýkoliv</option>
+          <option value="po">Pondělí</option>
+          <option value="ut">Úterý</option>
+          <option value="st">Středa</option>
+          <option value="ct">Čtvrtek</option>
+          <option value="pa">Pátek</option>
+          <option value="so">Sobota</option>
+          <option value="ne">Neděle</option>
+        </select>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('memberSearch').value='';document.getElementById('memberFilterTier').value='all';document.getElementById('memberFilterActivity').value='all';document.getElementById('memberFilterLevel').value='all';document.getElementById('memberFilterVenue').value='all';document.getElementById('memberFilterLooking').value='all';document.getElementById('memberFilterStyle').value='all';document.getElementById('memberFilterDay').value='all';paintMembersTable()">Zrušit filtry</button>
     </div>
     <p id="memberFilterCount" style="font-size:12px;color:#6E6E6E;margin:8px 0 0;"></p>
     <table class="admin-table" id="membersTable" style="margin-top:12px;"></table>
@@ -3714,6 +3744,9 @@ function paintMembersTable(){
   const levelFilter = document.getElementById('memberFilterLevel')?.value || 'all';
   const venueFilter = document.getElementById('memberFilterVenue')?.value || 'all';
   const venueId = venueFilter !== 'all' ? (venuesConfig[venueFilter] && venuesConfig[venueFilter].id) : null;
+  const lookingFilter = document.getElementById('memberFilterLooking')?.value || 'all';
+  const styleFilter = document.getElementById('memberFilterStyle')?.value || 'all';
+  const dayFilter = document.getElementById('memberFilterDay')?.value || 'all';
 
   let members = membersCache.slice();
   if(search) members = members.filter(m=>m.full_name.toLowerCase().includes(search) || (m.admin_note||'').toLowerCase().includes(search) || (m.email||'').toLowerCase().includes(search));
@@ -3722,6 +3755,11 @@ function paintMembersTable(){
   else if(tierFilter !== 'all') members = members.filter(m=>m.membership_tier===tierFilter && m.role!=='admin' && m.role!=='owner' && m.role!=='recepce');
   if(levelFilter === 'none') members = members.filter(m=>!m.level);
   else if(levelFilter !== 'all') members = members.filter(m=>m.level===levelFilter);
+  if(lookingFilter === 'none') members = members.filter(m=>!m.looking_for_players);
+  else if(lookingFilter !== 'all') members = members.filter(m=>m.looking_for_players===lookingFilter);
+  if(styleFilter === 'none') members = members.filter(m=>!m.play_style);
+  else if(styleFilter !== 'all') members = members.filter(m=>m.play_style===styleFilter);
+  if(dayFilter !== 'all') members = members.filter(m=>m.availability && !m.availability.irregular && (m.availability.days||[]).includes(dayFilter));
 
   // Když je vybraný konkrétní areál, tržba/počet rezervací se přepočítají jen za něj
   // (ne za celkovou historii člena napříč všemi areály).
@@ -4298,7 +4336,7 @@ async function renderAdminDashboard(el){
   const { count: refundCount } = await sb.from('reservations').select('id',{count:'exact',head:true}).eq('refund_status','pending');
   const { count: unmatchedCount } = await sb.from('unmatched_fio_transactions').select('id',{count:'exact',head:true}).eq('status','pending');
 
-  const { data: levelRows } = await sb.from('member_profiles').select('full_name, level, role, play_style').eq('role','member');
+  const { data: levelRows } = await sb.from('member_profiles').select('full_name, level, role, play_style, looking_for_players, availability').eq('role','member');
   const visibleVenuesForCount = Object.values(venuesConfig).filter(v=>v.isVisible);
   const venueCounts = await Promise.all(visibleVenuesForCount.map(async v=>{
     const { data } = await sb.rpc('get_venue_player_ids', { p_venue_id: v.id });
@@ -4334,12 +4372,44 @@ async function renderAdminDashboard(el){
 
   const styleCounts = { radost:0, soutezne:0, oboji:0, nevyplneno:0 };
   (levelRows||[]).forEach(m=>{ styleCounts[m.play_style && styleCounts[m.play_style]!==undefined ? m.play_style : 'nevyplneno']++; });
-  const styleLabelsShort = { radost:'🙂 Pro radost („takoví")', soutezne:'🔥 Soutěživí („makoví")', oboji:'⚖️ Obojí', nevyplneno:'Nevyplněno' };
+  const styleLabelsShort = { radost:'🙂 Pro radost', soutezne:'🔥 Soutěživí', oboji:'⚖️ Obojí', nevyplneno:'Nevyplněno' };
   const styleMax = Math.max(1, ...Object.values(styleCounts));
   const styleDistHtml = Object.keys(styleLabelsShort).map(k=>{
     const n = styleCounts[k]; const pct = Math.round(n/styleMax*100);
     return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
       <div style="width:190px;font-size:12.5px;color:#4A4840;flex:none;">${styleLabelsShort[k]}</div>
+      <div style="flex:1;background:#F0EEE6;border-radius:6px;height:18px;overflow:hidden;"><div style="width:${pct}%;background:var(--ink);height:100%;"></div></div>
+      <div style="width:28px;text-align:right;font-size:12.5px;font-weight:600;flex:none;">${n}</div>
+    </div>`;
+  }).join('');
+
+  const lookingCounts = { ano:0, obcas:0, ne:0, nevyplneno:0 };
+  (levelRows||[]).forEach(m=>{ lookingCounts[m.looking_for_players && lookingCounts[m.looking_for_players]!==undefined ? m.looking_for_players : 'nevyplneno']++; });
+  const lookingLabels = { ano:'✅ Ano, rád/a pozná další hráče', obcas:'🤝 Občas, když chybí hráč', ne:'👥 Hraje se svou partou', nevyplneno:'Nevyplněno' };
+  const lookingMax = Math.max(1, ...Object.values(lookingCounts));
+  const lookingDistHtml = Object.keys(lookingLabels).map(k=>{
+    const n = lookingCounts[k]; const pct = Math.round(n/lookingMax*100);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <div style="width:230px;font-size:12.5px;color:#4A4840;flex:none;">${lookingLabels[k]}</div>
+      <div style="flex:1;background:#F0EEE6;border-radius:6px;height:18px;overflow:hidden;"><div style="width:${pct}%;background:var(--ink);height:100%;"></div></div>
+      <div style="width:28px;text-align:right;font-size:12.5px;font-weight:600;flex:none;">${n}</div>
+    </div>`;
+  }).join('');
+
+  const dayCounts = { po:0, ut:0, st:0, ct:0, pa:0, so:0, ne:0 };
+  const dayLabelsFull = { po:'Pondělí', ut:'Úterý', st:'Středa', ct:'Čtvrtek', pa:'Pátek', so:'Sobota', ne:'Neděle' };
+  let irregularCount = 0, noAvailCount = 0;
+  (levelRows||[]).forEach(m=>{
+    const a = m.availability;
+    if(!a){ noAvailCount++; return; }
+    if(a.irregular){ irregularCount++; return; }
+    (a.days||[]).forEach(d=>{ if(dayCounts[d]!==undefined) dayCounts[d]++; });
+  });
+  const dayMax = Math.max(1, ...Object.values(dayCounts));
+  const dayDistHtml = Object.keys(dayLabelsFull).map(k=>{
+    const n = dayCounts[k]; const pct = Math.round(n/dayMax*100);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <div style="width:100px;font-size:12.5px;color:#4A4840;flex:none;">${dayLabelsFull[k]}</div>
       <div style="flex:1;background:#F0EEE6;border-radius:6px;height:18px;overflow:hidden;"><div style="width:${pct}%;background:var(--ink);height:100%;"></div></div>
       <div style="width:28px;text-align:right;font-size:12.5px;font-weight:600;flex:none;">${n}</div>
     </div>`;
@@ -4383,6 +4453,13 @@ async function renderAdminDashboard(el){
     <div class="section-title">🎾 Komunita — pro radost vs. soutěživí</div>
     <div class="card" style="display:block;">${styleDistHtml}</div>
     <p style="font-size:11.5px;color:#948e83;margin:6px 0 0;">Jen z toho, co si lidi sami dobrovolně vyplnili v profilu — spousta lidí to zatím nemá vyplněné.</p>
+
+    <div class="section-title">🎾 Komunita — chce hrát i s novými lidmi</div>
+    <div class="card" style="display:block;">${lookingDistHtml}</div>
+
+    <div class="section-title">🎾 Komunita — dostupnost podle dne</div>
+    <div class="card" style="display:block;">${dayDistHtml}</div>
+    <p style="font-size:11.5px;color:#948e83;margin:6px 0 0;">${irregularCount} lidí má "mám to pokaždé jinak", ${noAvailCount} nevyplnilo dostupnost vůbec — jeden člověk může být započítaný ve víc dnech.</p>
 
     <div class="section-title">🎾 Komunita — aktivita podle úrovně</div>
     ${activityHtml}
