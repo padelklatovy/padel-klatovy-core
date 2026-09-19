@@ -4266,6 +4266,11 @@ async function renderAdminDashboard(el){
   const { count: unmatchedCount } = await sb.from('unmatched_fio_transactions').select('id',{count:'exact',head:true}).eq('status','pending');
 
   const { data: levelRows } = await sb.from('member_profiles').select('full_name, level, role, play_style').eq('role','member');
+  const visibleVenuesForCount = Object.values(venuesConfig).filter(v=>v.isVisible);
+  const venueCounts = await Promise.all(visibleVenuesForCount.map(async v=>{
+    const { data } = await sb.rpc('get_venue_player_ids', { p_venue_id: v.id });
+    return { name: v.name, count: (data||[]).length };
+  }));
   const { data: activityRows } = await sb.rpc('get_level_activity');
   const { data: pairRows } = await sb.rpc('get_frequent_pairs', { limit_n: 12 });
 
@@ -4328,6 +4333,7 @@ async function renderAdminDashboard(el){
     <p class="page-sub">Provozní přehled ke dnešnímu dni.</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:22px;">
       <div class="card"><div class="info"><b>Registrovaných celkem</b><div style="font-size:30px;font-weight:700;color:var(--ink);margin-top:4px;">${totalMembers}</div></div></div>
+      <div class="card"><div class="info"><b>Podle areálu (kdo tam hrál)</b><div style="margin-top:6px;">${venueCounts.map(v=>`<div style="display:flex;justify-content:space-between;font-size:13.5px;padding:2px 0;"><span>${v.name}</span><b>${v.count}</b></div>`).join('')}</div><div class="meta" style="margin-top:4px;">appka nemá "domovský areál", jen kdo tam někdy zaplatil rezervaci</div></div></div>
       <div class="card"><div class="info"><b>Muži / ženy</b><div style="font-size:30px;font-weight:700;color:var(--ink);margin-top:4px;">${muziOdhad} / ${zenyOdhad}</div><div class="meta" style="margin-top:2px;">odhad podle jména, appka to nesbírá</div></div></div>
       <div class="card"><div class="info"><b>Obsazenost dnes</b><div style="font-size:30px;font-weight:700;color:var(--ink);margin-top:4px;">${occupancyPct} %</div></div></div>
       <div class="card"><div class="info"><b>Čeká na platbu</b><div style="font-size:30px;font-weight:700;color:var(--ink);margin-top:4px;">${pendingCount||0}</div></div></div>
