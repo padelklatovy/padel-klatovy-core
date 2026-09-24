@@ -1540,7 +1540,7 @@ async function loadGridReservations(){
 function findReservationAt(courtId, hour){
   return gridReservations.find(r => r.court_id===courtId && hour >= r.start_hour && hour < r.end_hour && !['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status));
 }
-function computeMaxDuration(loc, courtId, startHour){
+function computeMaxDuration(loc, courtId, startHour, noCap){
   const court = loc.courts.find(c=>c.id===courtId);
   let closeAt = court ? court.dayEnd : loc.dayEnd;
   if(court && court.weekly){
@@ -1554,7 +1554,8 @@ function computeMaxDuration(loc, courtId, startHour){
     if(occ) break;
     h += loc.slotStep;
   }
-  return Math.min(Math.round((h-startHour)*(1/loc.slotStep))/(1/loc.slotStep), MAX_DURATION_CAP);
+  const raw = Math.round((h-startHour)*(1/loc.slotStep))/(1/loc.slotStep);
+  return noCap ? raw : Math.min(raw, MAX_DURATION_CAP);
 }
 async function renderGrid(){
   if(!currentLocationId) return;
@@ -1988,7 +1989,7 @@ function onSoloTrainingToggle(checked){
 }
 function populateEndSelect(){
   const loc = booking.loc;
-  const maxDur = booking.isSolo ? Math.min(Math.max(1, loc.minDuration), computeMaxDuration(loc, booking.courtId, booking.startHour)) : computeMaxDuration(loc, booking.courtId, booking.startHour);
+  const maxDur = booking.isSolo ? Math.min(Math.max(1, loc.minDuration), computeMaxDuration(loc, booking.courtId, booking.startHour, booking.adminMode)) : computeMaxDuration(loc, booking.courtId, booking.startHour, booking.adminMode);
   const ends = [];
   for(let d=loc.minDuration; d<=maxDur+1e-9; d+=loc.slotStep){
     ends.push(Math.round((booking.startHour+d)*(1/loc.slotStep))/(1/loc.slotStep));
@@ -2828,7 +2829,7 @@ async function openAdminSlotModal(courtId, hour, existing){
     if(existing.series_id){ populateSeriesBulkEditSelects(courtId, existing.start_hour, existing.end_hour); }
     showModal('adminSlotOverlay'); return;
   }
-  const maxDur = computeMaxDuration(loc, courtId, hour);
+  const maxDur = computeMaxDuration(loc, courtId, hour, true);
   box.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:8px;">
       <button class="btn btn-dark" ${maxDur<loc.minDuration?'disabled':''} onclick="closeModal('adminSlotOverlay');openBookingModal({courtId:'${courtId}', startHour:${hour}, maxDuration:${maxDur}, adminMode:true})">Vytvořit rezervaci</button>
@@ -2881,7 +2882,9 @@ function computeMaxDurAgainst(loc, startHour, activeList){
     if(occ) break;
     h += loc.slotStep;
   }
-  return Math.min(Math.round((h-startHour)*(1/loc.slotStep))/(1/loc.slotStep), MAX_DURATION_CAP);
+  // Bez stropu 4 h — tahle funkce se používá jen v admin úpravě jednotlivého
+  // termínu, tam by omezení nemělo smysl (viz stejná úprava u computeMaxDuration).
+  return Math.round((h-startHour)*(1/loc.slotStep))/(1/loc.slotStep);
 }
 async function populateEditStarts(){
   const loc = editState.loc;
