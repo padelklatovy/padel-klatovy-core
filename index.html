@@ -3877,7 +3877,12 @@ function exportMembersCsv(){
   setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
   toast('Staženo: '+list.length+' členů (CSV)');
 }
+function closeMemberPrint(){
+  document.getElementById('memberPrintOverlay')?.remove();
+  document.getElementById('memberPrintStyle')?.remove();
+}
 function exportMembersPdf(){
+ try {
   const list = membersForExport();
   if(!list.length){ toast('Není co exportovat — filtr nevrací nikoho'); return; }
   const groups = {};
@@ -3887,34 +3892,57 @@ function exportMembersPdf(){
     const rows = groups[k].map(m=>{
       const n = splitMemberName(m.full_name);
       const tier = exportMemberTierText(m);
-      return `<li><span class="nm">${escHtml(n.surname+' '+n.first)}</span>${tier!=='Nečlen' ? ` <span class="tag">${escHtml(tier.toLowerCase())}</span>`:''}${m.phone ? `<span class="ph">${escHtml(m.phone)}</span>`:''}</li>`;
+      return `<li><span class="mp-nm">${escHtml((n.surname+' '+n.first).trim())}</span>${tier!=='Nečlen' ? ` <span class="mp-tag">${escHtml(tier.toLowerCase())}</span>`:''}${m.phone ? `<span class="mp-ph">${escHtml(m.phone)}</span>`:''}</li>`;
     }).join('');
     return `<section><h2>${k==='Nevyplněno' ? 'Úroveň nevyplněna' : 'Úroveň '+k} <small>${groups[k].length}</small></h2><ul>${rows}</ul></section>`;
   }).join('');
   const summary = order.map(k=>`<tr><td><b>${escHtml(k)}</b></td><td style="text-align:right">${groups[k].length}</td></tr>`).join('');
   const today = new Date().toLocaleDateString('cs-CZ');
-  const html = `<!doctype html><html lang="cs"><head><meta charset="utf-8"><title>Členové podle úrovně</title><style>
-    @page{size:A4;margin:14mm}
-    body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#141414}
-    h1{font-size:17pt;margin:0 0 2mm;border-bottom:3px solid #FF0000;padding-bottom:2mm}
-    .sub{color:#6E6E6E;font-size:9pt;margin-bottom:4mm}
-    table{border-collapse:collapse;margin:0 0 4mm}td{padding:1mm 6mm 1mm 0;border-bottom:.2mm solid #ddd}
-    h2{font-size:12pt;margin:5mm 0 2mm;background:#141414;color:#fff;padding:1.6mm 3mm;break-after:avoid}
-    h2 small{font-weight:normal;color:#ccc;margin-left:3mm}
-    ul{columns:2;column-gap:8mm;list-style:none;padding:0;margin:0}
-    li{padding:.8mm 0;border-bottom:.2mm solid #eee;break-inside:avoid;display:flex;gap:2mm;align-items:baseline}
-    .nm{flex:1}.ph{color:#6E6E6E;font-size:8.5pt}
-    .tag{font-size:7pt;color:#b00000;border:.2mm solid #b00000;border-radius:1mm;padding:0 1mm}
-  </style></head><body>
-  <h1>Členové podle úrovně hry</h1>
-  <div class="sub">Filtr: ${escHtml(activeMemberFilterText())} · ke dni ${today} · celkem ${list.length} osob · řazeno podle úrovně (A→D2) a příjmení</div>
-  <table>${summary}</table>${sections}</body></html>`;
-  const w = window.open('', '_blank');
-  if(!w){ toast('Prohlížeč zablokoval nové okno — povol vyskakovací okna pro tuto stránku'); return; }
-  w.document.open(); w.document.write(html); w.document.close();
-  setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} }, 400);
-}
 
+  closeMemberPrint();
+  // Tisk v rámci stránky (žádné vyskakovací okno, které by prohlížeč mohl zablokovat)
+  const st = document.createElement('style');
+  st.id = 'memberPrintStyle';
+  st.textContent = `
+    #memberPrintContent{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#141414;max-width:820px;margin:0 auto}
+    #memberPrintContent h1{font-size:17pt;margin:0 0 6px;border-bottom:3px solid #FF0000;padding-bottom:6px}
+    #memberPrintContent .mp-sub{color:#6E6E6E;font-size:9pt;margin-bottom:12px}
+    #memberPrintContent table{border-collapse:collapse;margin:0 0 12px}
+    #memberPrintContent td{padding:3px 22px 3px 0;border-bottom:1px solid #ddd}
+    #memberPrintContent h2{font-size:12pt;margin:16px 0 6px;background:#141414;color:#fff;padding:5px 10px;break-after:avoid}
+    #memberPrintContent h2 small{font-weight:normal;color:#ccc;margin-left:10px}
+    #memberPrintContent ul{columns:2;column-gap:28px;list-style:none;padding:0;margin:0}
+    #memberPrintContent li{padding:3px 0;border-bottom:1px solid #eee;break-inside:avoid;display:flex;gap:8px;align-items:baseline}
+    #memberPrintContent .mp-nm{flex:1}
+    #memberPrintContent .mp-ph{color:#6E6E6E;font-size:8.5pt}
+    #memberPrintContent .mp-tag{font-size:7pt;color:#b00000;border:1px solid #b00000;border-radius:3px;padding:0 3px}
+    @media print{
+      @page{size:A4;margin:14mm}
+      body > *:not(#memberPrintOverlay){display:none !important}
+      #memberPrintOverlay{position:static !important;padding:0 !important;overflow:visible !important;background:#fff !important}
+      .mp-noprint{display:none !important}
+    }`;
+  document.head.appendChild(st);
+  const ov = document.createElement('div');
+  ov.id = 'memberPrintOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#fff;overflow:auto;padding:16px;';
+  ov.innerHTML = `
+    <div class="mp-noprint" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 auto 14px;max-width:820px;position:sticky;top:0;background:#fff;padding:8px 0;z-index:2;">
+      <button class="btn btn-dark" onclick="window.print()">🖨️ Vytisknout / uložit jako PDF</button>
+      <button class="btn btn-ghost" onclick="closeMemberPrint()">Zavřít náhled</button>
+    </div>
+    <div id="memberPrintContent">
+      <h1>Členové podle úrovně hry</h1>
+      <div class="mp-sub">Filtr: ${escHtml(activeMemberFilterText())} · ke dni ${today} · celkem ${list.length} osob · řazeno podle úrovně (A→D2) a příjmení</div>
+      <table>${summary}</table>${sections}
+    </div>`;
+  document.body.appendChild(ov);
+  ov.scrollTop = 0;
+ } catch(e) {
+  console.error('exportMembersPdf selhal:', e);
+  toast('Export selhal: ' + (e && e.message ? e.message : e));
+ }
+}
 function openMemberDetail(userId){
   const m = membersCache.find(x=>x.user_id===userId); if(!m) return;
   document.getElementById('memberDetailName').textContent = m.full_name;
