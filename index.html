@@ -516,6 +516,8 @@
         </select>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('memberSearch').value='';document.getElementById('memberFilterTier').value='all';document.getElementById('memberFilterActivity').value='all';document.getElementById('memberFilterLevel').value='all';document.getElementById('memberFilterVenue').value='all';document.getElementById('memberFilterLooking').value='all';document.getElementById('memberFilterStyle').value='all';document.getElementById('memberFilterDay').value='all';paintMembersTable()">Zrušit filtry</button>
+      <button class="btn btn-sm btn-dark" onclick="exportMembersPdf()" title="Vyexportuje aktuálně vyfiltrovaný seznam, seřazený podle úrovně a příjmení">Export PDF</button>
+      <button class="btn btn-sm btn-ghost" onclick="exportMembersCsv()" title="Stáhne aktuálně vyfiltrovaný seznam pro Excel">Export CSV</button>
     </div>
     <p id="memberFilterCount" style="font-size:12px;color:#6E6E6E;margin:8px 0 0;"></p>
     <table class="admin-table" id="membersTable" style="margin-top:12px;"></table>
@@ -3728,6 +3730,7 @@ function describeAvailability(a){
   return `${days||'kterýkoliv den'} · ${times||'kterýkoliv čas'}`;
 }
 let membersCache = [];
+let lastFilteredMembers = [];
 async function renderMembers(){
   const { data, error } = await sb.from('member_profiles').select('*').order('full_name');
   if(error){ toast('Chyba: '+error.message); return; }
@@ -3778,6 +3781,7 @@ function paintMembersTable(){
   else if(activityFilter === 'has_revenue') members = members.filter(m=>m.revenue > 0);
 
   members.sort((a,b)=> b.revenue - a.revenue);
+  lastFilteredMembers = members;
   const table = document.getElementById('membersTable'); if(!table) return;
   const tierLabel = {none:'Nečlen', clen:'Člen', trener:'Trenér'};
   const levelLabelOf = code => (PLAYER_LEVELS.find(l=>l.code===code) || {label: code || '—'}).label;
@@ -3795,6 +3799,98 @@ function paintMembersTable(){
   const countLabel = document.getElementById('memberFilterCount');
   if(countLabel) countLabel.textContent = `${members.length} z ${membersCache.length} členů`;
 }
+
+/* ---- Export členů (respektuje aktuální filtry; řazení: úroveň A→D2, pak příjmení) ---- */
+const EXPORT_LEVEL_ORDER = ['A','B1','B2','C1','C2','D1','D2'];
+function splitMemberName(full){
+  const parts = String(full||'').trim().split(/\s+/);
+  if(parts.length < 2) return { surname: parts[0]||'', first: '' };
+  return { surname: parts[parts.length-1], first: parts.slice(0,-1).join(' ') };
+}
+function membersForExport(){
+  const lvl = m => { const i = EXPORT_LEVEL_ORDER.indexOf(m.level); return i<0 ? 99 : i; };
+  return lastFilteredMembers.slice().sort((a,b)=>{
+    if(lvl(a)!==lvl(b)) return lvl(a)-lvl(b);
+    const na = splitMemberName(a.full_name), nb = splitMemberName(b.full_name);
+    return na.surname.localeCompare(nb.surname,'cs') || na.first.localeCompare(nb.first,'cs');
+  });
+}
+function exportMemberTierText(m){
+  if(m.role==='admin'||m.role==='owner') return 'Admin';
+  if(m.role==='recepce') return 'Recepce';
+  return ({none:'Nečlen', clen:'Člen', trener:'Trenér'})[m.membership_tier] || 'Nečlen';
+}
+function activeMemberFilterText(){
+  const ids = ['memberFilterTier','memberFilterActivity','memberFilterLevel','memberFilterVenue','memberFilterLooking','memberFilterStyle','memberFilterDay'];
+  const parts = [];
+  const q = (document.getElementById('memberSearch')?.value||'').trim();
+  if(q) parts.push('hledání: „'+q+'“');
+  ids.forEach(id=>{
+    const el = document.getElementById(id);
+    if(el && el.value !== 'all'){
+      const lbl = el.closest('.field')?.querySelector('label')?.textContent || '';
+      parts.push(lbl+': '+el.options[el.selectedIndex].text);
+    }
+  });
+  return parts.length ? parts.join(' · ') : 'bez filtrů (všichni)';
+}
+function escHtml(x){ return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function exportMembersCsv(){
+  const list = membersForExport();
+  if(!list.length){ toast('Není co exportovat — filtr nevrací nikoho'); return; }
+  const q = v => '"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const rows = [['Příjmení','Jméno','Hráčská úroveň','Členská úroveň','Role','Telefon','E-mail']];
+  list.forEach(m=>{
+    const n = splitMemberName(m.full_name);
+    rows.push([n.surname, n.first, m.level||'', exportMemberTierText(m), m.role||'', m.phone||'', m.email||'']);
+  });
+  const csv = '﻿' + rows.map(r=>r.map(q).join(';')).join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'clenove-' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  toast('Staženo: '+list.length+' členů (CSV)');
+}
+function exportMembersPdf(){
+  const list = membersForExport();
+  if(!list.length){ toast('Není co exportovat — filtr nevrací nikoho'); return; }
+  const groups = {};
+  list.forEach(m=>{ const k = EXPORT_LEVEL_ORDER.includes(m.level) ? m.level : 'Nevyplněno'; (groups[k] = groups[k]||[]).push(m); });
+  const order = EXPORT_LEVEL_ORDER.concat(['Nevyplněno']).filter(k=>groups[k]);
+  const sections = order.map(k=>{
+    const rows = groups[k].map(m=>{
+      const n = splitMemberName(m.full_name);
+      const tier = exportMemberTierText(m);
+      return `<li><span class="nm">${escHtml(n.surname+' '+n.first)}</span>${tier!=='Nečlen' ? ` <span class="tag">${escHtml(tier.toLowerCase())}</span>`:''}${m.phone ? `<span class="ph">${escHtml(m.phone)}</span>`:''}</li>`;
+    }).join('');
+    return `<section><h2>${k==='Nevyplněno' ? 'Úroveň nevyplněna' : 'Úroveň '+k} <small>${groups[k].length}</small></h2><ul>${rows}</ul></section>`;
+  }).join('');
+  const summary = order.map(k=>`<tr><td><b>${escHtml(k)}</b></td><td style="text-align:right">${groups[k].length}</td></tr>`).join('');
+  const today = new Date().toLocaleDateString('cs-CZ');
+  const html = `<!doctype html><html lang="cs"><head><meta charset="utf-8"><title>Členové podle úrovně</title><style>
+    @page{size:A4;margin:14mm}
+    body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#141414}
+    h1{font-size:17pt;margin:0 0 2mm;border-bottom:3px solid #FF0000;padding-bottom:2mm}
+    .sub{color:#6E6E6E;font-size:9pt;margin-bottom:4mm}
+    table{border-collapse:collapse;margin:0 0 4mm}td{padding:1mm 6mm 1mm 0;border-bottom:.2mm solid #ddd}
+    h2{font-size:12pt;margin:5mm 0 2mm;background:#141414;color:#fff;padding:1.6mm 3mm;break-after:avoid}
+    h2 small{font-weight:normal;color:#ccc;margin-left:3mm}
+    ul{columns:2;column-gap:8mm;list-style:none;padding:0;margin:0}
+    li{padding:.8mm 0;border-bottom:.2mm solid #eee;break-inside:avoid;display:flex;gap:2mm;align-items:baseline}
+    .nm{flex:1}.ph{color:#6E6E6E;font-size:8.5pt}
+    .tag{font-size:7pt;color:#b00000;border:.2mm solid #b00000;border-radius:1mm;padding:0 1mm}
+  </style></head><body>
+  <h1>Členové podle úrovně hry</h1>
+  <div class="sub">Filtr: ${escHtml(activeMemberFilterText())} · ke dni ${today} · celkem ${list.length} osob · řazeno podle úrovně (A→D2) a příjmení</div>
+  <table>${summary}</table>${sections}</body></html>`;
+  const w = window.open('', '_blank');
+  if(!w){ toast('Prohlížeč zablokoval nové okno — povol vyskakovací okna pro tuto stránku'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} }, 400);
+}
+
 function openMemberDetail(userId){
   const m = membersCache.find(x=>x.user_id===userId); if(!m) return;
   document.getElementById('memberDetailName').textContent = m.full_name;
