@@ -483,6 +483,7 @@
           <option value="padel-klatovy">Padel Klatovy</option>
           <option value="beachvolley-klatovy">Beachvolejbal Klatovy</option>
           <option value="padel-brandys">Padel Brandýs</option>
+          <option value="__none__">Registrovaní bez rezervace v žádném areálu</option>
         </select>
       </div>
       <div class="field" style="max-width:220px;margin:0;"><label style="font-size:12px;">Chce hrát s novými</label>
@@ -3276,13 +3277,13 @@ async function renderOnsiteCheck(){
   el.innerHTML = 'Načítání…';
   const { from, to } = onsiteCheckPeriodRange();
 
-  const { data: groupRes, error: e1 } = await sb.from('reservations').select('date, expected_onsite_amount, series_name, venue_id')
+  const { data: groupRes, error: e1 } = await fetchAllRows(()=>sb.from('reservations').select('date, expected_onsite_amount, series_name, venue_id')
     .not('expected_onsite_amount','is',null).gt('expected_onsite_amount', 0)
-    .eq('status','paid_confirmed').gte('date', from).lte('date', to);
+    .eq('status','paid_confirmed').gte('date', from).lte('date', to).order('id'));
   if(e1){ el.innerHTML = 'Chyba: '+e1.message; return; }
 
-  const { data: kurtPayments, error: e2 } = await sb.from('onsite_bar_payments').select('transaction_date, amount, venue_id')
-    .eq('payment_category','kurt').gte('transaction_date', from).lte('transaction_date', to);
+  const { data: kurtPayments, error: e2 } = await fetchAllRows(()=>sb.from('onsite_bar_payments').select('transaction_date, amount, venue_id')
+    .eq('payment_category','kurt').gte('transaction_date', from).lte('transaction_date', to).order('id'));
   if(e2){ el.innerHTML = 'Chyba: '+e2.message; return; }
 
   const venueName = id => (Object.values(venuesConfig).find(v=>v.id===id) || {}).name || 'Neznámý areál';
@@ -3329,9 +3330,9 @@ async function renderRevenueBreakdown(){
   if(!el) return;
   el.innerHTML = 'Načítání…';
   const { from, to } = revenuePeriodRange();
-  const { data: reservations, error: e1 } = await sb.from('reservations').select('venue_id, amount_due, expected_onsite_amount').eq('status','paid_confirmed').gte('date', from).lte('date', to);
+  const { data: reservations, error: e1 } = await fetchAllRows(()=>sb.from('reservations').select('venue_id, amount_due, expected_onsite_amount').eq('status','paid_confirmed').gte('date', from).lte('date', to).order('id'));
   if(e1){ el.innerHTML = 'Chyba: '+e1.message; return; }
-  const { data: barPayments, error: e2 } = await sb.from('onsite_bar_payments').select('amount, payment_category, venue_id').gte('transaction_date', from).lte('transaction_date', to);
+  const { data: barPayments, error: e2 } = await fetchAllRows(()=>sb.from('onsite_bar_payments').select('amount, payment_category, venue_id').gte('transaction_date', from).lte('transaction_date', to).order('id'));
   if(e2){ el.innerHTML = 'Chyba: '+e2.message; return; }
 
   const venueName = id => (Object.values(venuesConfig).find(v=>v.id===id) || {}).name || 'Neznámý areál';
@@ -3381,6 +3382,19 @@ async function renderRevenueBreakdown(){
       <tr><td>🆓 Zdarma (trenéři, sólo tréninky, akce zdarma)</td><td>${freeRes.length}</td><td>0 Kč</td></tr>
     </table>`;
 }
+// PostgREST (Supabase) vrací max. 1000 řádků na jeden dotaz a zbytek TICHO ořízne.
+// Tahle funkce stránkuje, aby se admin přehledy/tržby/členové nikdy neoříznuly.
+// makeQuery musí vracet nový dotaz s deterministickým řazením (.order('id') jako poslední).
+async function fetchAllRows(makeQuery){
+  const PAGE = 1000; let all = [];
+  for(let from = 0; ; from += PAGE){
+    const { data, error } = await makeQuery().range(from, from + PAGE - 1);
+    if(error) return { data: null, error };
+    all = all.concat(data || []);
+    if(!data || data.length < PAGE) break;
+  }
+  return { data: all, error: null };
+}
 async function renderAdmin(){
   if(!isAdmin()){
     document.getElementById('view-admin').innerHTML = `<h1 class="page-title">Admin</h1><div class="empty-state"><div class="em-title">Přístup jen pro adminy</div>Přihlas se účtem s rolí admin (nastaví se přímo v tabulce member_profiles).</div>`;
@@ -3390,7 +3404,7 @@ async function renderAdmin(){
   renderCourtsManageTable();
   renderRevenueBreakdown();
   renderOnsiteCheck();
-  const { data, error } = await sb.from('reservations').select('*').order('date',{ascending:false});
+  const { data, error } = await fetchAllRows(()=>sb.from('reservations').select('*').order('date',{ascending:false}).order('id'));
   if(error){ toast('Chyba: '+error.message); return; }
   adminReservationsCache = data;
 
@@ -3732,14 +3746,21 @@ function describeAvailability(a){
 let membersCache = [];
 let lastFilteredMembers = [];
 async function renderMembers(){
-  const { data, error } = await sb.from('member_profiles').select('*').order('full_name');
+  const { data, error } = await fetchAllRows(()=>sb.from('member_profiles').select('*').order('full_name').order('user_id'));
   if(error){ toast('Chyba: '+error.message); return; }
   const { data: emailRows } = await sb.rpc('admin_list_member_emails');
   const emailByUserId = {};
   (emailRows||[]).forEach(r=>{ emailByUserId[r.user_id] = r.email; });
+  // Spoluhráči: kde člověk hrál, i když nikdy sám nerezervoval (jen zaplacené rezervace s ním v 'players')
+  const coVenues = {};
+  adminReservationsCache.forEach(r=>{
+    if(r.status!=='paid_confirmed' || !r.venue_id || !Array.isArray(r.players)) return;
+    r.players.forEach(p=>{ if(p && p.memberId){ (coVenues[p.memberId] = coVenues[p.memberId] || new Set()).add(r.venue_id); } });
+  });
   membersCache = data.map(m=>{
     const mine = adminReservationsCache.filter(r=>r.member_id===m.user_id);
-    return { ...m, email: emailByUserId[m.user_id] || null, revenue: mine.filter(r=>r.status==='paid_confirmed').reduce((s,r)=>s+Number(r.amount_due||0),0), count: mine.length, reservations: mine };
+    const playedVenues = new Set([...mine.map(r=>r.venue_id), ...(coVenues[m.user_id] ? [...coVenues[m.user_id]] : [])]);
+    return { ...m, playedVenues, email: emailByUserId[m.user_id] || null, revenue: mine.filter(r=>r.status==='paid_confirmed').reduce((s,r)=>s+Number(r.amount_due||0),0), count: mine.length, reservations: mine };
   });
   paintMembersTable();
 }
@@ -3774,7 +3795,10 @@ function paintMembersTable(){
     const venueRes = m.reservations.filter(r=>r.venue_id===venueId);
     return { ...m, revenue: venueRes.filter(r=>r.status==='paid_confirmed').reduce((s,r)=>s+Number(r.amount_due||0),0), count: venueRes.length };
   });
-  if(venueId) members = members.filter(m=>m.count > 0);
+  // Areál zahrnuje i ty, kdo tam hráli jen jako spoluhráči (sami nikdy nerezervovali).
+  if(venueId) members = members.filter(m=>m.count > 0 || m.playedVenues.has(venueId));
+  // Registrovaní, kteří nemají žádnou vazbu na žádný areál (nikdy nerezervovali ani nehráli jako spoluhráč).
+  if(venueFilter === '__none__') members = members.filter(m=>m.playedVenues.size === 0);
 
   if(activityFilter === 'has_bookings') members = members.filter(m=>m.count > 0);
   else if(activityFilter === 'no_bookings') members = members.filter(m=>m.count === 0);
