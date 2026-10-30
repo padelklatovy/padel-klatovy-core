@@ -78,7 +78,7 @@
   .slot.spanning{border-radius:10px;}
   nav.tabs button{border-radius:10px 10px 0 0;}
   .card,.news-card,.product-card,.stat-card{box-shadow:0 1px 2px rgba(0,0,0,.04),0 6px 18px rgba(0,0,0,.04);}
-  .theme-toggle{position:fixed;left:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:60;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:19px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.18);opacity:.9;padding:0;line-height:1;}
+  .theme-toggle{position:fixed;left:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:60;width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:16px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.18);opacity:.7;padding:0;line-height:1;}
   html[data-theme="dark"]{color-scheme:dark;
     --paper:#0E0F12; --paper-dim:#23262C; --line:#2C3037; --card:#181A1F; --fg:#ECECEE; --muted:#9BA1AB;
     --ink:#1D2025; --amber:#E8B04A; --amber-bg:#3B2E12; --ok-bg:#12352D; --ok-text:#7FD8C0; --danger-bg:#3E1C1A;
@@ -104,6 +104,21 @@
   html[data-theme="dark"] .product-card:hover,html[data-theme="dark"] .news-card:hover{box-shadow:0 10px 26px rgba(0,0,0,.5);}
   .toast{border-radius:14px;}
   input[type=checkbox]{accent-color:var(--red);}
+  .om-how{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 20px;margin-bottom:14px;font-size:14px;line-height:1.55;}
+  .om-how ol{margin:8px 0 6px;padding-left:20px;} .om-how li{margin:4px 0;}
+  .om-how-sub{font-size:13px;color:var(--muted);}
+  .om-b{font-weight:700;color:var(--fg);} .om-pay .om-b{color:inherit;}
+  .om-spot-pend{color:var(--amber);}
+  .om-pay.warn{background:var(--amber-bg);color:var(--amber);}
+  .om-admin{background:var(--card);border:1px dashed var(--line);border-radius:18px;padding:14px 18px;margin-bottom:14px;font-size:14px;}
+  .om-admin-sub{font-size:12.5px;color:var(--muted);margin:2px 0 10px;}
+  .om-admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;}
+  .om-admin-grid select,.om-admin-grid input{padding:9px 10px;border:1px solid var(--line);border-radius:10px;font-size:13px;background:var(--card);color:var(--fg);}
+  .om-spots{letter-spacing:2px;color:var(--red);font-size:15px;} .om-spot-free{color:var(--muted);}
+  .om-badge{display:inline-block;font-size:12px;font-weight:700;padding:6px 12px;border-radius:999px;background:var(--paper-dim);color:var(--muted);white-space:nowrap;}
+  .om-badge.ok{background:var(--ok-bg);color:var(--ok-text);} .om-badge.warn{background:var(--amber-bg);color:var(--amber);}
+  .om-pay{margin-top:10px;padding:10px 14px;background:var(--ok-bg);color:var(--ok-text);border-radius:12px;font-size:13px;}
+  .om-pay a:not(.btn){color:inherit;font-weight:700;}
   nav.tabs button{position:relative;}
   #newsDot{display:none;position:absolute;top:10px;right:6px;width:9px;height:9px;background:var(--red);border-radius:50%;pointer-events:none;}
   /* ===== NOVINKY ===== */
@@ -402,7 +417,7 @@
 
   <section class="view" id="view-openmatches">
     <h1 class="page-title">Open Matches</h1>
-    <p class="page-sub">Rezervace, kde organizátor hledá další hráče. Domluva probíhá přes WhatsApp.</p>
+    <p class="page-sub">Chybí ti spoluhráči, nebo hledáš zápas? Tady se potkáte.</p>
     <div class="card-list" id="openList">Načítání…</div>
   </section>
 
@@ -934,7 +949,7 @@
   <div class="modal">
     <button class="modal-close" onclick="closeModal('paymentOverlay')">×</button>
     <h2>Platba QR kódem</h2>
-    <p class="modal-sub">Naskenuj v bankovní appce a zaplať do <b>1 hodiny</b> (večer a v noci do 2 hodin), jinak se rezervace automaticky zruší. Plať <b>okamžitou platbou z korunového účtu</b> – běžný nebo zahraniční (eurový) převod nemusí dorazit včas. Po připsání platby se potvrdí (obvykle do 15 minut).</p>
+    <p class="modal-sub" id="paymentSub">Naskenuj v bankovní appce a zaplať do <b>30 minut</b>, jinak se rezervace automaticky zruší. Po připsání platby se potvrdí (obvykle do 15 minut).</p>
     <div class="qr-box">
       <div class="qr-visual" id="qrVisual"></div>
       <div class="qr-meta" id="qrMeta"></div>
@@ -964,7 +979,7 @@
   <div class="modal">
     <button class="modal-close" onclick="closeModal('eventPaymentOverlay')">×</button>
     <h2>Platba za přihlášku</h2>
-    <p class="modal-sub">Naskenuj v bankovní appce a zaplať do <b>1 hodiny</b> (večer a v noci do 2 hodin), jinak se přihláška automaticky zruší. Plať <b>okamžitou platbou z korunového účtu</b> – běžný nebo zahraniční (eurový) převod nemusí dorazit včas. Po připsání platby se potvrdí (obvykle do 15 minut).</p>
+    <p class="modal-sub">Naskenuj v bankovní appce a zaplať do <b>30 minut</b>, jinak se přihláška automaticky zruší. Po připsání platby se potvrdí (obvykle do 15 minut).</p>
     <div class="qr-box">
       <div class="qr-visual" id="eventQrVisual"></div>
       <div class="qr-meta" id="eventQrMeta"></div>
@@ -2441,6 +2456,7 @@ async function confirmBookingRecurring(){
 }
 
 /* ================= PLATBA (simulace, FIO zatím nenapojen) ================= */
+const PAYMENT_SUB_DEFAULT = 'Naskenuj v bankovní appce a zaplať do <b>30 minut</b>, jinak se rezervace automaticky zruší. Po připsání platby se potvrdí (obvykle do 15 minut).';
 async function openPaymentModalFor(reservation, payment){
   if(!payment){
     const { data: p } = await sb.from('payments').select('*').eq('reservation_id', reservation.id).maybeSingle();
@@ -2456,6 +2472,7 @@ async function openPaymentModalFor(reservation, payment){
     }
   }
   const qr = document.getElementById('qrVisual');
+  const subEl = document.getElementById('paymentSub'); if(subEl) subEl.innerHTML = PAYMENT_SUB_DEFAULT;
   const amount = payment ? payment.amount : reservation.amount_due;
   const vs = payment ? payment.variable_symbol : '';
   const seriesNote = reservation.series_id ? `<br><b>Platba za celou sérii „${reservation.series_name}"</b>` : '';
@@ -2595,48 +2612,245 @@ async function cancelReservation(id){
 }
 
 /* ================= OPEN MATCHES ================= */
+const OM_LEVEL_ORDER = ['D2','D1','C2','C1','B2','B1','A'];
+function omRange(level){
+  const i = OM_LEVEL_ORDER.indexOf(level);
+  if(i === -1) return OM_LEVEL_ORDER.slice();
+  return OM_LEVEL_ORDER.slice(Math.max(0,i-1), i+2);
+}
+function omRangeText(level){ const r = omRange(level); return r.length === OM_LEVEL_ORDER.length ? 'všechny úrovně' : (r[0] === r[r.length-1] ? r[0] : `${r[0]}–${r[r.length-1]}`); }
+function omCanJoinLevel(matchLevel, playerLevel){
+  if(isAdmin()) return true;
+  if(!matchLevel || !OM_LEVEL_ORDER.includes(matchLevel)) return true;
+  if(!playerLevel || !OM_LEVEL_ORDER.includes(playerLevel)) return false;
+  return omRange(matchLevel).includes(playerLevel);
+}
+function omStartDate(r){ const h = Math.floor(Number(r.start_hour)); const m = Math.round((Number(r.start_hour)-h)*60); return new Date(`${r.date}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`); }
+function omHoursLeft(r){ return (omStartDate(r) - new Date()) / 3600000; }
+function omWaPhone(p){ return (p||'').replace(/[^0-9]/g,''); }
+function omShare(r, court){
+  const cap = (court && court.maxPlayers) || 4;
+  return Math.ceil(Number(r.amount_due||0) / cap);
+}
+function omErr(error){
+  const m = (error && error.message) || 'Něco se nepovedlo';
+  return m.replace(/^.*?OM_[A-Z]+:\s*/, '');
+}
+const OM_ACTIVE = ['none','pending_payment','paid'];
+function omShareFor(r, om){
+  const base = Number(r.base_price || r.amount_due || 0);
+  const needed = (om && om.players_needed) || 4;
+  const disc = (profile && Number(profile.discount_percent)) || 0;
+  return Math.round(base / needed * (1 - disc/100));
+}
 async function renderOpen(){
   const el = document.getElementById('openList');
   el.innerHTML = 'Načítání…';
+  const admBox = isAdmin() ? await omAdminBoxHtml() : '';
   const { data, error } = await sb.from('reservations')
     .select('*, open_matches(*, open_match_players(*))')
     .eq('is_open_match', true).eq('status','paid_confirmed')
-    .gte('date', todayISO()).order('date');
+    .gte('date', todayISO()).order('date').order('start_hour');
   if(error){ el.innerHTML = emptyState('Chyba', error.message); return; }
-  if(!data.length){ el.innerHTML = emptyState('Žádný otevřený zápas', 'Zaškrtni „Chci hledat spoluhráče" při rezervaci kurtu.'); return; }
-  el.innerHTML = data.map(r=>{
+  const rows = (data||[]).filter(r => omHoursLeft(r) > 0 && r.open_matches && r.open_matches[0] && r.open_matches[0].status !== 'cancelled');
+  const howTo = `<div class="om-how"><b>Jak to funguje</b>
+    <ol>
+      <li><b>Vyber zápas</b> podle termínu a úrovně. Přihlásit se můžeš do zápasů pro svoji úroveň a o jeden stupeň výš nebo níž.</li>
+      <li><b>Zaplať svůj díl</b> (cena kurtu ÷ 4, u zápasů označených „platba v appce“) QR kódem. Tím je tvoje místo jisté.</li>
+      <li><b>Když se zápas nenaplní,</b> 12 hodin před začátkem se zruší a peníze ti vrátíme. Odhlásit se můžeš do 12 hodin před začátkem.</li>
+    </ol>
+    <div class="om-how-sub">Nemáš v seznamu termín, který ti vyhovuje? Zarezervuj si kurt a zaškrtni „Chci hledat spoluhráče“. U takových zápasů platí kurt organizátor a podíl si domluvíte spolu.</div></div>`;
+  if(!rows.length){ el.innerHTML = admBox + howTo + emptyState('Zatím žádný otevřený zápas', 'Založ ho sám: při rezervaci kurtu zaškrtni „Chci hledat spoluhráče“.'); omAdminFillCourts(); return; }
+  const myId = profile && profile.user_id;
+  const myLevel = profile && profile.level;
+  const levelOf = code => (PLAYER_LEVELS.find(l=>l.code===code) || {label: code || '—'}).label;
+  el.innerHTML = admBox + howTo + rows.map(r=>{
     const om = r.open_matches[0];
+    const split = om.mode === 'split';
     const court = findCourt(r.court_id);
-    const players = om ? om.open_match_players : [];
-    const joined = players.length;
-    const needed = om ? om.players_needed : 2;
-    const levelLabel = (PLAYER_LEVELS.find(l=>l.code===(om && om.level)) || {label: om ? om.level : ''}).label;
-    const levelOf = code => (PLAYER_LEVELS.find(l=>l.code===code) || {label: code || '—'}).label;
-    const organizerLevelTxt = r.organizer_level ? ` (${levelOf(r.organizer_level)})` : '';
-    const playersListTxt = players.length
-      ? players.map(p=>`${p.member_name || 'Hráč'}${p.member_level ? ` (${levelOf(p.member_level)})` : ''}`).join(', ')
+    const all = (om.open_match_players || []).filter(p => OM_ACTIVE.includes(p.pay_status || 'none'));
+    const confirmed = all.filter(p => p.pay_status !== 'pending_payment');
+    const pendingN = all.length - confirmed.length;
+    const needed = om.players_needed;
+    const free = Math.max(needed - all.length, 0);
+    const level = om.level;
+    const mine = !!(myId && r.member_id === myId);
+    const myRow = myId ? all.find(p => p.member_id === myId) : null;
+    const share = split ? omShareFor(r, om) : omShare(r, court);
+    const hoursLeft = omHoursLeft(r);
+    const canLeave = myRow && hoursLeft > 12;
+    const spots = '<span class="om-spots">' + '●'.repeat(confirmed.length) + '<span class="om-spot-pend">' + '◐'.repeat(pendingN) + '</span><span class="om-spot-free">' + '○'.repeat(free) + '</span></span>';
+    const playersListTxt = confirmed.length
+      ? confirmed.map(p=>`${escHtml(p.member_name || 'Hráč')}${p.member_level ? ` (${p.member_level})` : ''}`).join(', ')
       : 'zatím nikdo';
-    const waText = encodeURIComponent(`Hledáme hráče! ${court.locationName} – ${court.name}, ${fmtDate(r.date)} v ${formatHour(r.start_hour)}. Úroveň: ${levelLabel}. Chybí ${Math.max(needed-joined,0)} hráč(i). Napiš ${r.organizer_name} (${r.organizer_phone||''}).`);
-    return `<div class="card"><div class="info">
-        <b>${court.locationName} · ${court.name} · ${formatHour(r.start_hour)}</b>
-        <div class="meta">${fmtDate(r.date)} · organizuje ${r.organizer_name}${organizerLevelTxt} · hledá úroveň ${levelLabel}</div>
-        <div class="meta">Přihlášeno ${joined}/${needed}: ${playersListTxt}</div>
+    const isFull = om.status === 'full' || free === 0;
+    const lateBlocked = split && hoursLeft <= 12 && all.length < needed - 1;
+    let action;
+    if(mine) action = `<span class="om-badge">Tvůj zápas</span>`;
+    else if(myRow && myRow.pay_status === 'pending_payment') action = `<button class="btn btn-sm btn-green" onclick="omShowMyPayment('${r.id}')">Zaplatit ${myRow.amount_due} Kč</button><button class="btn btn-sm btn-ghost" onclick="leaveOpenMatch('${r.id}')">Zrušit</button>`;
+    else if(myRow) action = canLeave ? `<button class="btn btn-sm btn-ghost" onclick="leaveOpenMatch('${r.id}')">Odhlásit se${split ? ' (vrátíme peníze)' : ''}</button>` : `<span class="om-badge ok">Jsi přihlášen</span>`;
+    else if(isFull) action = `<span class="om-badge">Plno</span>`;
+    else if(lateBlocked) action = `<span class="om-badge warn">Už se nenaplní včas</span>`;
+    else if(!profile) action = `<button class="btn btn-sm btn-green" onclick="joinOpenMatch('${r.id}')">Přihlásit se</button>`;
+    else if(!omCanJoinLevel(level, myLevel)) action = `<span class="om-badge warn" title="Zápas je pro úroveň ${omRangeText(level)}">Jiná úroveň</span>`;
+    else action = `<button class="btn btn-sm btn-green" onclick="joinOpenMatch('${r.id}')">${split ? `Přihlásit se a zaplatit ${share} Kč` : 'Přihlásit se'}</button>`;
+    const phoneDigits = omWaPhone(r.organizer_phone);
+    let infoBox = '';
+    if(myRow && !mine){
+      if(split){
+        infoBox = myRow.pay_status === 'pending_payment'
+          ? `<div class="om-pay warn"><span class="om-b">Čeká na platbu ${myRow.amount_due} Kč.</span> Místo držíme 90 minut od přihlášení.</div>`
+          : `<div class="om-pay"><span class="om-b">Zaplaceno ${myRow.amount_due || 0} Kč.</span> Máš jisté místo. Pokud se zápas nenaplní, 12 hodin před začátkem se zruší a peníze ti vrátíme.</div>`;
+      } else {
+        infoBox = `<div class="om-pay"><span class="om-b">Jsi přihlášen/a.</span> Orientační podíl za kurt je <span class="om-b">${share} Kč</span>. Domluv se s organizátorem ${escHtml(r.organizer_name||'')}${r.organizer_phone ? ` (<a href="tel:${escHtml(r.organizer_phone)}">${escHtml(r.organizer_phone)}</a>)` : ''}.
+          ${phoneDigits ? `<a class="btn btn-sm btn-dark" style="text-decoration:none;display:inline-block;margin-top:8px;" target="_blank" rel="noopener" href="https://wa.me/${phoneDigits}?text=${encodeURIComponent(`Ahoj, jsem přihlášen/á do tvého Open Matche (${fmtDate(r.date)} ${formatHour(r.start_hour)}). Kam mám poslat podíl ${share} Kč?`)}">Napsat na WhatsApp</a>` : ''}</div>`;
+      }
+    }
+    const waText = encodeURIComponent(`🎾 Hledáme hráče! ${court.locationName} – ${court.name}, ${fmtDate(r.date)} v ${formatHour(r.start_hour)}. Úroveň ${omRangeText(level)}. Chybí ${free} hráč(i), ${split ? '' : 'cca '}${share} Kč/os. Přihlas se: https://rezervace.padelklatovy.cz/#open-matches`);
+    const modeBadge = split ? `<span class="om-badge ok" style="margin-left:6px;">platba v appce</span>` : '';
+    return `<div class="card om-card"><div class="info">
+        <b>${escHtml(court.locationName)} · ${escHtml(court.name)} · ${formatHour(r.start_hour)}–${formatHour(r.end_hour)}</b>${modeBadge}
+        <div class="meta">${fmtDate(r.date)} · ${split ? '' : 'cca '}<span class="om-b">${share} Kč</span> / hráč</div>
+        <div class="meta">Úroveň zápasu <span class="om-b">${level ? escHtml(levelOf(level)) : 'libovolná'}</span>${level ? ` · přihlásit se můžou <span class="om-b">${omRangeText(level)}</span>` : ''}</div>
+        ${split ? '' : `<div class="meta">Organizuje ${escHtml(r.organizer_name||'')}${r.organizer_level ? ` (${r.organizer_level})` : ''}</div>`}
+        <div class="meta">${spots} ${confirmed.length}/${needed} přihlášeno: ${playersListTxt}${pendingN ? ` · ${pendingN} čeká na platbu` : ''}${free ? ` · <span class="om-b">chybí ${free}</span>` : ''}</div>
+        ${infoBox}
+        ${isAdmin() && split ? `<div class="meta" style="margin-top:6px;"><button class="btn btn-sm btn-ghost" onclick="omAdminCancel('${r.id}')">Zrušit zápas (vrátit platby)</button></div>` : ''}
       </div><div class="actions">
-        <button class="btn btn-sm btn-green" onclick="joinOpenMatch('${r.id}')">Přihlásit se</button>
-        <a class="btn btn-sm btn-dark" style="text-decoration:none;" href="https://wa.me/?text=${waText}" target="_blank">WhatsApp</a>
+        ${action}
+        ${free>0 ? `<a class="btn btn-sm btn-dark" style="text-decoration:none;" href="https://wa.me/?text=${waText}" target="_blank" rel="noopener">Sdílet</a>` : ''}
       </div></div>`;
   }).join('');
+  omAdminFillCourts();
 }
 async function joinOpenMatch(reservationId){
   if(!profile){ toast('Nejdřív se přihlas'); showModal('loginOverlay'); return; }
   const { data: om, error } = await sb.from('open_matches').select('*, open_match_players(*)').eq('reservation_id', reservationId).maybeSingle();
   if(error || !om){ toast('Open match nenalezen'); return; }
+  if(om.mode === 'split'){
+    const { data, error: rpcErr } = await sb.rpc('join_open_match_split', { p_reservation_id: reservationId });
+    if(rpcErr){ toast(omErr(rpcErr)); await renderOpen(); return; }
+    await renderOpen();
+    if(data && data.paid){ toast('Přihlášen do Open Matche'); return; }
+    const { data: r } = await sb.from('reservations').select('date,start_hour').eq('id', reservationId).maybeSingle();
+    omOpenPaymentModal({ amount: data.amount, vs: data.variable_symbol, date: r && r.date, start: r && r.start_hour });
+    return;
+  }
+  if(om.organizer_member_id === profile.user_id){ toast('To je tvůj vlastní zápas'); return; }
   if(om.open_match_players.some(p=>p.member_id===profile.user_id)){ toast('Už jsi přihlášen'); return; }
   if(om.open_match_players.length >= om.players_needed){ toast('Zápas je už plný'); return; }
+  if(!omCanJoinLevel(om.level, profile.level)){
+    toast(profile.level ? `Zápas je pro úroveň ${omRangeText(om.level)}, ty máš ${profile.level}` : 'Nejdřív si v profilu nastav úroveň hry');
+    return;
+  }
   const { error: joinErr } = await sb.from('open_match_players').insert({ open_match_id: om.id, member_id: profile.user_id, member_name: profile.full_name, member_level: profile.level });
-  if(joinErr){ toast('Chyba: '+joinErr.message); return; }
-  toast('Přihlášen do Open Match');
+  if(joinErr){ toast(omErr(joinErr)); return; }
+  toast('Přihlášen do Open Matche. Podíl si domluv s organizátorem.');
   await renderOpen();
+}
+function omOpenPaymentModal(info){
+  const qr = document.getElementById('qrVisual');
+  const msg = `Open Match ${info.date || ''} ${info.start!=null ? formatHour(info.start) : ''}`.trim();
+  if(info.vs) renderPaymentQR(qr, info.amount, info.vs, msg); else qr.innerHTML = '';
+  document.getElementById('qrMeta').innerHTML = `Účet: <b>${CLUB_ACCOUNT_DISPLAY}</b> · Částka: <b>${info.amount} Kč</b><br>VS: <b>${info.vs || '—'}</b> · Zpráva: <b>${msg}</b>`;
+  const subEl = document.getElementById('paymentSub');
+  if(subEl) subEl.innerHTML = 'Naskenuj v bankovní appce a zaplať svůj díl. <b>Místo ti držíme 90 minut.</b> Po připsání platby se potvrdí (obvykle do 15 minut). Když se zápas nenaplní, peníze ti vrátíme.';
+  document.getElementById('paymentStatusBox').innerHTML = `<span class="status-pill pending">Čeká na platbu</span>`;
+  showModal('paymentOverlay');
+}
+async function omShowMyPayment(reservationId){
+  if(!profile) return;
+  const { data: om } = await sb.from('open_matches').select('id').eq('reservation_id', reservationId).maybeSingle();
+  if(!om) return;
+  const { data: p } = await sb.from('open_match_players').select('id,amount_due').eq('open_match_id', om.id).eq('member_id', profile.user_id).eq('pay_status','pending_payment').maybeSingle();
+  if(!p){ toast('Nenalezeno'); await renderOpen(); return; }
+  const { data: pay } = await sb.from('payments').select('amount,variable_symbol').eq('open_match_player_id', p.id).maybeSingle();
+  const { data: r } = await sb.from('reservations').select('date,start_hour').eq('id', reservationId).maybeSingle();
+  if(!pay){ toast('Platba nenalezena'); return; }
+  omOpenPaymentModal({ amount: pay.amount, vs: pay.variable_symbol, date: r && r.date, start: r && r.start_hour });
+}
+async function leaveOpenMatch(reservationId){
+  if(!profile) return;
+  const { data: om } = await sb.from('open_matches').select('id,mode').eq('reservation_id', reservationId).maybeSingle();
+  if(!om){ toast('Open match nenalezen'); return; }
+  const { data: p } = await sb.from('open_match_players').select('id,pay_status,amount_due').eq('open_match_id', om.id).eq('member_id', profile.user_id).in('pay_status', OM_ACTIVE).maybeSingle();
+  if(!p){ toast('Nejsi přihlášen'); await renderOpen(); return; }
+  const refundNote = (om.mode === 'split' && p.pay_status === 'paid') ? ` Zaplacených ${p.amount_due} Kč ti klub vrátí.` : '';
+  if(!confirm('Opravdu se chceš odhlásit z tohoto zápasu?' + refundNote)) return;
+  const { data, error } = await sb.rpc('leave_open_match', { p_player_id: p.id });
+  if(error){ toast(omErr(error)); return; }
+  toast(data && data.refund ? 'Odhlášen/a. Vratka je zadaná, klub ti ji pošle.' : 'Odhlášen/a ze zápasu');
+  await renderOpen();
+}
+
+/* ---- ADMIN: vypsání Open Matche s platbou v appce ---- */
+async function omAdminBoxHtml(){
+  const venues = Object.keys(venuesConfig).filter(slug => venuesConfig[slug].maxPlayers === 4);
+  if(!venues.length) return '';
+  const venueOpts = venues.map(slug=>`<option value="${slug}">${escHtml(venuesConfig[slug].name)}</option>`).join('');
+  const levelOpts = `<option value="">Libovolná úroveň</option>` + PLAYER_LEVELS.map(l=>`<option value="${l.code}">${escHtml(l.label)}</option>`).join('');
+  const hourOpts = []; for(let h=8; h<=21; h+=0.5){ hourOpts.push(`<option value="${h}">${formatHour(h)}</option>`); }
+  return `<div class="om-admin"><b>Vypsat Open Match (admin)</b>
+    <div class="om-admin-sub">Klub drží kurt, každý hráč platí svůj díl v appce. Pokud se zápas 12 h před začátkem nenaplní, zruší se a platby se vrátí.</div>
+    <div class="om-admin-grid">
+      <select id="omaVenue" onchange="omAdminFillCourts()">${venueOpts}</select>
+      <select id="omaCourt"></select>
+      <input type="date" id="omaDate" value="${todayISO()}" min="${todayISO()}">
+      <select id="omaStart">${hourOpts.join('')}</select>
+      <select id="omaDur"><option value="1">1 hodina</option><option value="1.5">1,5 hodiny</option><option value="2">2 hodiny</option></select>
+      <select id="omaLevel">${levelOpts}</select>
+    </div>
+    <button class="btn btn-sm btn-primary" style="margin-top:10px;" onclick="omAdminCreate()">Vypsat zápas</button>
+  </div>`;
+}
+function omAdminFillCourts(){
+  const slug = document.getElementById('omaVenue') && document.getElementById('omaVenue').value;
+  const sel = document.getElementById('omaCourt'); if(!sel || !slug) return;
+  sel.innerHTML = venuesConfig[slug].courts.filter(c=>c.isActive!==false).map(c=>`<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+}
+async function omAdminCreate(){
+  if(!isAdmin()) return;
+  const slug = document.getElementById('omaVenue').value;
+  const loc = venuesConfig[slug];
+  const courtId = document.getElementById('omaCourt').value;
+  const date = document.getElementById('omaDate').value;
+  const start = Number(document.getElementById('omaStart').value);
+  const dur = Number(document.getElementById('omaDur').value);
+  const level = document.getElementById('omaLevel').value || null;
+  if(!date || !courtId){ toast('Vyplň kurt a datum'); return; }
+  const base = Math.round(dur * loc.priceHour);
+  const { data: reservation, error } = await sb.from('reservations').insert({
+    club_id: CLUB_ID, venue_id: loc.id, court_id: courtId, member_id: null,
+    organizer_name: 'Padel Klatovy (Open Match)', organizer_phone: '', organizer_level: null,
+    date, start_hour: start, duration_hours: dur, end_hour: start + dur,
+    type: 'open_match', status: 'paid_confirmed', base_price: base, discount_applied: 0, amount_due: base,
+    players: [], is_open_match: true, created_by: session.user.email, paid_at: new Date().toISOString(),
+    admin_note: 'Open Match (platba v appce)'
+  }).select().single();
+  if(error){ toast(friendlyReservationError(error)); return; }
+  const { error: omErr2 } = await sb.from('open_matches').insert({
+    reservation_id: reservation.id, organizer_member_id: null, players_needed: loc.maxPlayers || 4,
+    level, mode: 'split', status: 'open'
+  });
+  if(omErr2){
+    await sb.from('reservations').delete().eq('id', reservation.id);
+    toast('Zápas se nepodařilo vytvořit: ' + omErr2.message); return;
+  }
+  toast('Open Match vypsán');
+  await renderOpen();
+}
+async function omAdminCancel(reservationId){
+  if(!isAdmin()) return;
+  const { data: om } = await sb.from('open_matches').select('id').eq('reservation_id', reservationId).maybeSingle();
+  if(!om) return;
+  const { data: paid } = await sb.from('open_match_players').select('id').eq('open_match_id', om.id).eq('pay_status','paid');
+  if(!confirm(`Zrušit tento Open Match? ${paid && paid.length ? `Zaplaceným hráčům (${paid.length}) se vytvoří vratky.` : 'Nikdo ještě nezaplatil.'}`)) return;
+  const ids = (paid||[]).map(p=>p.id);
+  if(ids.length) await sb.from('open_match_players').update({ pay_status: 'refund_pending' }).in('id', ids);
+  await sb.from('open_match_players').update({ pay_status: 'cancelled' }).eq('open_match_id', om.id).eq('pay_status','pending_payment');
+  await sb.from('open_matches').update({ status: 'cancelled' }).eq('id', om.id);
+  await sb.from('reservations').update({ status: 'cancelled_by_admin' }).eq('id', reservationId);
+  toast('Zápas zrušen'); await renderOpen();
 }
 
 /* ================= KALENDÁŘ ================= */
@@ -3262,15 +3476,19 @@ async function renderRefundsPending(){
   const table = document.getElementById('refundsTable'); if(!table) return;
   const { data, error } = await sb.from('reservations').select('*').eq('refund_status','pending').order('date',{ascending:false});
   if(error){ table.innerHTML = `<tr><td style="padding:16px;color:#948e83;">Chyba: ${error.message}</td></tr>`; return; }
-  if(!data || !data.length){ table.innerHTML = `<tr><td style="padding:16px;color:#948e83;">Nic nečeká na vrácení 🎉</td></tr>`; return; }
+  const { data: omRefunds } = await sb.from('open_match_players')
+    .select('id, member_name, amount_due, open_matches(reservation_id, reservations(date, start_hour, court_id))')
+    .eq('pay_status','refund_pending');
+  if((!data || !data.length) && (!omRefunds || !omRefunds.length)){ table.innerHTML = `<tr><td style="padding:16px;color:#948e83;">Nic nečeká na vrácení 🎉</td></tr>`; return; }
 
-  const resIds = data.map(r=>r.id);
-  const { data: pays } = await sb.from('payments').select('reservation_id, payer_account, variable_symbol').in('reservation_id', resIds);
+  const resIds = (data||[]).map(r=>r.id);
+  const { data: pays } = resIds.length ? await sb.from('payments').select('reservation_id, payer_account, variable_symbol').in('reservation_id', resIds) : { data: [] };
   const payByRes = {}; (pays||[]).forEach(p=>{ payByRes[p.reservation_id] = p; });
+  const omIds = (omRefunds||[]).map(p=>p.id);
+  const { data: omPays } = omIds.length ? await sb.from('payments').select('open_match_player_id, payer_account, variable_symbol').in('open_match_player_id', omIds) : { data: [] };
+  const payByOm = {}; (omPays||[]).forEach(p=>{ payByOm[p.open_match_player_id] = p; });
 
-  table.innerHTML = `
-    <tr><th>Hřiště</th><th>Kurt</th><th>Datum</th><th>Kdo</th><th>Částka</th><th>Účet plátce</th><th>VS</th><th></th></tr>
-    ${data.map(r=>{
+  const resRows = (data||[]).map(r=>{
       const court = findCourt(r.court_id);
       const pay = payByRes[r.id];
       return `<tr>
@@ -3279,8 +3497,27 @@ async function renderRefundsPending(){
         <td>${pay?.payer_account || '—'}</td><td>${pay?.variable_symbol || '—'}</td>
         <td><button class="btn btn-sm btn-green" onclick="markRefunded('${r.id}')">Označit jako vráceno</button></td>
       </tr>`;
-    }).join('')}
-  `;
+    }).join('');
+  const omRows = (omRefunds||[]).map(p=>{
+      const rr = p.open_matches && p.open_matches.reservations;
+      const court = rr ? findCourt(rr.court_id) : null;
+      const pay = payByOm[p.id];
+      return `<tr>
+        <td>${court ? court.locationName : '—'}</td><td>${court ? court.name : '—'}</td><td>${rr ? rr.date : '—'}</td>
+        <td>${escHtml(p.member_name || '—')} <span style="font-size:11px;color:#948e83;">(Open Match)</span></td><td>${p.amount_due} Kč</td>
+        <td>${pay?.payer_account || '—'}</td><td>${pay?.variable_symbol || '—'}</td>
+        <td><button class="btn btn-sm btn-green" onclick="markOmRefunded('${p.id}')">Označit jako vráceno</button></td>
+      </tr>`;
+    }).join('');
+  table.innerHTML = `
+    <tr><th>Hřiště</th><th>Kurt</th><th>Datum</th><th>Kdo</th><th>Částka</th><th>Účet plátce</th><th>VS</th><th></th></tr>
+    ${resRows}${omRows}`;
+}
+async function markOmRefunded(id){
+  const { error } = await sb.from('open_match_players').update({ pay_status:'refunded', refund_marked_at: new Date().toISOString() }).eq('id', id);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Označeno jako vráceno');
+  await renderRefundsPending();
 }
 async function markRefunded(id){
   const { error } = await sb.from('reservations').update({ refund_status:'done', refund_marked_at: new Date().toISOString() }).eq('id', id);
@@ -4686,7 +4923,9 @@ async function renderAdminDashboard(el){
     tomorrowSignups = count||0;
   }
 
-  const { count: refundCount } = await sb.from('reservations').select('id',{count:'exact',head:true}).eq('refund_status','pending');
+  const { count: refundCountRes } = await sb.from('reservations').select('id',{count:'exact',head:true}).eq('refund_status','pending');
+  const { count: refundCountOm } = await sb.from('open_match_players').select('id',{count:'exact',head:true}).eq('pay_status','refund_pending');
+  const refundCount = (refundCountRes||0) + (refundCountOm||0);
   const { count: unmatchedCount } = await sb.from('unmatched_fio_transactions').select('id',{count:'exact',head:true}).eq('status','pending');
 
   const { data: levelRows } = await sb.from('member_profiles').select('full_name, level, role, play_style, looking_for_players, availability').eq('role','member');
