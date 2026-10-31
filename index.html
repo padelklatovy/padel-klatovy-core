@@ -2933,10 +2933,21 @@ async function openEventRegistrantsModal(ev){
       const name = p?.full_name || r.participant_name || '—';
       const phone = p?.phone || r.participant_phone || '—';
       const statusHtml = r.status==='paid_confirmed' ? '<span class="status-pill paid">Zaplaceno</span>' : '<span class="status-pill pending">Čeká na platbu</span>';
-      const actionHtml = r.status==='pending_payment' ? `<button class="btn btn-sm btn-green" onclick="markEventRegPaid('${r.id}')">Označit jako zaplaceno</button>` : '';
+      const actionHtml = (r.status==='pending_payment' ? `<button class="btn btn-sm btn-green" onclick="markEventRegPaid('${r.id}')">Označit jako zaplaceno</button> ` : '') + `<button class="btn btn-sm btn-ghost" onclick="adminCancelEventReg('${r.id}')">Odhlásit</button>`;
       return `<tr><td>${name}${!p?' <small style="color:#948e83;">(bez účtu)</small>':''}</td><td>${phone}</td><td>${r.partner_name || '—'}</td><td>${r.amount_due} Kč</td><td>${statusHtml}</td><td>${actionHtml}</td></tr>`;
     }).join('')}
   </tbody></table>`;
+}
+async function adminCancelEventReg(regId){
+  const { data: reg } = await sb.from('event_registrations').select('id,status,amount_due,participant_name,member_id').eq('id', regId).maybeSingle();
+  if(!reg){ toast('Přihláška nenalezena'); return; }
+  const paidMoney = reg.status==='paid_confirmed' && Number(reg.amount_due)>0;
+  if(!confirm('Odhlásit tohoto účastníka z akce?' + (paidMoney ? '\n\nPozor: už zaplatil ' + reg.amount_due + ' Kč. Appka peníze nevrací, pošli je ručně z banky.' : ''))) return;
+  const { error } = await sb.from('event_registrations').update({status:'cancelled'}).eq('id', regId);
+  if(error){ toast('Chyba: '+error.message); return; }
+  toast('Účastník odhlášen, místo je volné');
+  await openEventRegistrantsModal(activeAdminRegEvent);
+  await renderCalendar();
 }
 async function markEventRegPaid(regId){
   const { error } = await sb.from('event_registrations').update({status:'paid_confirmed', paid_at: new Date().toISOString()}).eq('id', regId);
