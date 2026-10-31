@@ -107,6 +107,7 @@
   .om-how{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 20px;margin-bottom:14px;font-size:14px;line-height:1.55;}
   .om-how ol{margin:8px 0 6px;padding-left:20px;} .om-how li{margin:4px 0;}
   .om-how-sub{font-size:13px;color:var(--muted);}
+  .om-two{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0;} .om-type{flex:1 1 240px;border-radius:16px;padding:12px 14px;border:1px solid var(--line);} .om-type ul{margin:6px 0 0;padding-left:18px;} .om-type li{margin:4px 0;} .om-type-h{font-weight:700;font-size:15px;} .om-type-h span{font-weight:600;font-size:11px;padding:2px 8px;border-radius:99px;margin-left:6px;vertical-align:middle;} .om-club{border-color:#16a34a;background:rgba(22,163,74,.08);} .om-club .om-type-h span{background:#16a34a;color:#fff;} .om-player .om-type-h span{background:var(--muted);color:#fff;}
   .om-b{font-weight:700;color:var(--fg);} .om-pay .om-b{color:inherit;}
   .om-spot-pend{color:var(--amber);}
   .om-pay.warn{background:var(--amber-bg);color:var(--amber);}
@@ -2653,13 +2654,14 @@ async function renderOpen(){
     .gte('date', todayISO()).order('date').order('start_hour');
   if(error){ el.innerHTML = emptyState('Chyba', error.message); return; }
   const rows = (data||[]).filter(r => omHoursLeft(r) > 0 && r.open_matches && r.open_matches[0] && r.open_matches[0].status !== 'cancelled');
-  const howTo = `<div class="om-how"><b>Jak to funguje</b>
-    <ol>
-      <li><b>Vyber zápas</b> podle termínu a úrovně. Přihlásit se můžeš do zápasů pro svoji úroveň a o jeden stupeň výš nebo níž.</li>
-      <li><b>Zaplať svůj díl</b> (cena kurtu ÷ 4, u zápasů označených „platba v appce“) QR kódem. Tím je tvoje místo jisté.</li>
-      <li><b>Když se zápas nenaplní,</b> 12 hodin před začátkem se zruší a peníze ti vrátíme. Odhlásit se můžeš do 12 hodin před začátkem.</li>
-    </ol>
-    <div class="om-how-sub">Nemáš v seznamu termín, který ti vyhovuje? Zarezervuj si kurt a zaškrtni „Chci hledat spoluhráče“. U takových zápasů platí kurt organizátor a podíl si domluvíte spolu.</div></div>`;
+  const howTo = `<div class="om-how"><b style="font-size:16px;">Jak Open Match funguje</b>
+    <div class="om-two">
+      <div class="om-type om-club"><div class="om-type-h">Zápas klubu <span>„platba v appce“</span></div>
+        <ul><li>Zápas vypsal klub.</li><li><b>Platíš jen svůj díl</b>: cena kurtu ÷ 4, členové se slevou.</li><li>Po přihlášení zaplatíš QR kódem. Místo ti držíme 90 minut.</li><li>Nenaplní se? 12 hodin před začátkem se zruší a <b>peníze ti vrátíme</b>.</li></ul></div>
+      <div class="om-type om-player"><div class="om-type-h">Zápas hráče <span>bez štítku</span></div>
+        <ul><li>Zápas vypsal hráč, který si zarezervoval kurt.</li><li><b>Kurt platí organizátor</b>, podíl si domluvíte spolu (u zápasu je jeho kontakt).</li><li>V appce se neplatí.</li><li>Zápas založíš sám: při rezervaci zaškrtni „Chci hledat spoluhráče“.</li></ul></div>
+    </div>
+    <div class="om-how-sub"><b>Pravidla:</b> přihlásit se můžeš do zápasů pro svoji úroveň a o jeden stupeň výš nebo níž. Odhlásit se můžeš do 12 hodin před začátkem (zaplacený díl u zápasu klubu se vrací). Později se dá přihlásit jen na poslední volné místo.</div></div>`;
   if(!rows.length){ el.innerHTML = admBox + howTo + emptyState('Zatím žádný otevřený zápas', 'Založ ho sám: při rezervaci kurtu zaškrtni „Chci hledat spoluhráče“.'); omAdminFillCourts(); return; }
   const myId = profile && profile.user_id;
   const myLevel = profile && profile.level;
