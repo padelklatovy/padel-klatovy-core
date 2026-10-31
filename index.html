@@ -1056,7 +1056,7 @@
   </div>
 </div>
 <div class="overlay" id="eventRegistrantsOverlay">
-  <div class="modal" style="max-width:560px;">
+  <div class="modal" style="max-width:min(900px,96vw);">
     <button class="modal-close" onclick="closeModal('eventRegistrantsOverlay')">×</button>
     <h2 id="registrantsEventName">Přihlášení</h2>
     <p class="modal-sub">Kdo se přihlásil a stav platby.</p>
@@ -2929,16 +2929,16 @@ async function openEventRegistrantsModal(ev){
   const { data: profiles } = await sb.from('member_profiles').select('user_id, full_name, phone').in('user_id', memberIds);
   const profileById = {};
   (profiles||[]).forEach(p=>{ profileById[p.user_id] = p; });
-  box.innerHTML = `<table class="admin-table"><thead><tr><th>Jméno</th><th>Telefon</th><th>Spoluhráč</th><th>Cena</th><th>Stav</th><th></th></tr></thead><tbody>
+  box.innerHTML = `<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Jméno</th><th>Telefon</th><th>Spoluhráč</th><th>Cena</th><th>Stav</th><th>Akce</th></tr></thead><tbody>
     ${regs.map(r=>{
       const p = r.member_id ? profileById[r.member_id] : null;
       const name = p?.full_name || r.participant_name || '—';
       const phone = p?.phone || r.participant_phone || '—';
       const statusHtml = r.status==='paid_confirmed' ? '<span class="status-pill paid">Zaplaceno</span>' : '<span class="status-pill pending">Čeká na platbu</span>';
       const actionHtml = (r.status==='pending_payment' ? `<button class="btn btn-sm btn-green" onclick="markEventRegPaid('${r.id}')">Označit jako zaplaceno</button> ` : '') + `<button class="btn btn-sm btn-ghost" onclick="adminCancelEventReg('${r.id}')">Odhlásit</button>`;
-      return `<tr><td>${name}${!p?' <small style="color:#948e83;">(bez účtu)</small>':''}</td><td>${phone}</td><td>${r.partner_name || '—'}</td><td>${r.amount_due} Kč</td><td>${statusHtml}</td><td>${actionHtml}</td></tr>`;
+      return `<tr><td>${name}${!p?' <small style="color:#948e83;">(bez účtu)</small>':''}</td><td>${phone}</td><td>${r.partner_name || '—'}</td><td>${r.amount_due} Kč</td><td style="white-space:nowrap;">${statusHtml}</td><td style="white-space:nowrap;">${actionHtml}</td></tr>`;
     }).join('')}
-  </tbody></table>`;
+  </tbody></table></div>`;
 }
 async function adminCancelEventReg(regId){
   const { data: reg } = await sb.from('event_registrations').select('id,status,amount_due,participant_name,member_id').eq('id', regId).maybeSingle();
