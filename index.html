@@ -107,6 +107,7 @@
   .om-how{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 20px;margin-bottom:14px;font-size:14px;line-height:1.55;}
   .om-how ol{margin:8px 0 6px;padding-left:20px;} .om-how li{margin:4px 0;}
   .om-how-sub{font-size:13px;color:var(--muted);}
+  .om-hl{animation:omhl 1.2s ease-in-out 3;box-shadow:0 0 0 2px #16a34a;} @keyframes omhl{50%{box-shadow:0 0 0 6px rgba(22,163,74,.45);}}
   .om-two{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0;} .om-type{flex:1 1 240px;border-radius:16px;padding:12px 14px;border:1px solid var(--line);} .om-type ul{margin:6px 0 0;padding-left:18px;} .om-type li{margin:4px 0;} .om-type-h{font-weight:700;font-size:15px;} .om-type-h span{font-weight:600;font-size:11px;padding:2px 8px;border-radius:99px;margin-left:6px;vertical-align:middle;} .om-club{border-color:#16a34a;background:rgba(22,163,74,.08);} .om-club .om-type-h span{background:#16a34a;color:#fff;} .om-player .om-type-h span{background:var(--muted);color:#fff;}
   .om-b{font-weight:700;color:var(--fg);} .om-pay .om-b{color:inherit;}
   .om-spot-pend{color:var(--amber);}
@@ -1498,7 +1499,7 @@ function switchView(view){
   if(view==='weekview') renderAdminWeekGrid();
   const hashMap = {calendar:'kalendar', reservations:'rezervace', mine:'moje-rezervace', openmatches:'open-matches', novinky:'novinky', admin:'admin', bulkemail:'hromadny-email', weekview:'tyden'};
   const h = hashMap[view];
-  if(h && location.hash.replace('#','') !== h){ history.replaceState(null,'','#'+h); }
+  if(h && location.hash.replace('#','') !== h && !/^#open-match=/i.test(location.hash)){ history.replaceState(null,'','#'+h); }
 }
 document.getElementById('tabs').addEventListener('click', (e)=>{
   if(e.target.tagName !== 'BUTTON') return;
@@ -1510,7 +1511,10 @@ function goToHome(){
   switchView('reservations');
   if(!isAdmin()) backToProducts();
 }
+var OM_DEEP = null;
 function applyHashRoute(){
+  const omHash = location.hash.match(/^#open-match=([0-9a-f-]{36})$/i);
+  if(omHash){ OM_DEEP = omHash[1].toLowerCase(); switchView('openmatches'); return; }
   const hashToView = {kalendar:'calendar', rezervace:'reservations', 'moje-rezervace':'mine', 'open-matches':'openmatches', novinky:'novinky', admin:'admin', 'hromadny-email':'bulkemail', tyden:'weekview'};
   const view = hashToView[location.hash.replace('#','')];
   if(view && document.querySelector('#tabs button[data-view="'+view+'"]')) switchView(view);
@@ -2638,6 +2642,62 @@ function omErr(error){
   return m.replace(/^.*?OM_[A-Z]+:\s*/, '');
 }
 const OM_ACTIVE = ['none','pending_payment','paid'];
+const OM_MSG = {};
+var OM_HL = null;
+function omApplyDeepLink(){
+  if(OM_DEEP){ OM_HL = { id: OM_DEEP, until: Date.now() + 5000, scrolled: false }; OM_DEEP = null; }
+  if(!OM_HL || Date.now() > OM_HL.until) return;
+  const card = document.getElementById('om-card-' + OM_HL.id);
+  if(!card){ if(!OM_HL.toasted){ OM_HL.toasted = true; toast('Tenhle zápas už není k dispozici (je zrušený nebo už proběhl).'); } return; }
+  card.classList.add('om-hl');
+  if(!OM_HL.scrolled){ OM_HL.scrolled = true; card.scrollIntoView({behavior:'smooth', block:'center'}); }
+}
+
+const OM_PUBLIC_URL = 'https://rezervace.padelklatovy.cz/';
+function omPlayersWord(n){ return n === 1 ? 'hráč' : (n >= 2 && n <= 4 ? 'hráči' : 'hráčů'); }
+function omDayLabel(iso){
+  const t = todayISO();
+  const tm = toLocalISODate(new Date(Date.now() + 86400000));
+  if(iso === t) return 'Dnes';
+  if(iso === tm) return 'Zítra';
+  return new Date(iso + 'T00:00:00').toLocaleDateString('cs-CZ', {weekday:'long', day:'numeric', month:'numeric'});
+}
+function omBuildMessage(r, om, court, taken, needed, split, share){
+  const free = Math.max(needed - taken, 0);
+  const lines = [
+    '🎾 OPEN MATCH – HLEDÁME HRÁČE!',
+    `📅 ${omDayLabel(r.date)} ${formatHour(r.start_hour)}–${formatHour(r.end_hour)}`,
+    `📍 ${court.locationName} – ${court.name}`,
+    `🎯 ${om.level ? 'Úroveň ' + om.level + ' (hrát můžou ' + omRangeText(om.level) + ')' : 'Úroveň libovolná'}`,
+    `👥 Přihlášeno ${taken}/${needed} – chybí ${free} ${omPlayersWord(free)}`
+  ];
+  if(split && share) lines.push(`💰 ${share} Kč / hráč (platba v appce)`);
+  lines.push('👉 Přihlas se přímo zde:', `${OM_PUBLIC_URL}#open-match=${r.id}`, 'Přijď si zahrát, i když nemáš vlastní partu!');
+  return lines.join('\n');
+}
+function omShareWa(id){
+  const msg = OM_MSG[id];
+  if(!msg){ toast('Zprávu se nepodařilo sestavit, zkus obnovit stránku'); return; }
+  const mobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.platform));
+  if(mobile && navigator.share){
+    navigator.share({ text: msg }).catch(e => { if(!e || e.name !== 'AbortError') omCopyMsg(id); });
+    return;
+  }
+  const w = window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank', 'noopener');
+  if(!w) omCopyMsg(id);
+}
+async function omCopyMsg(id){
+  const msg = OM_MSG[id];
+  if(!msg) return;
+  try { await navigator.clipboard.writeText(msg); toast('Zpráva zkopírována, vlož ji do WhatsAppu'); return; } catch(e){}
+  try {
+    const ta = document.createElement('textarea'); ta.value = msg; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); document.body.removeChild(ta);
+    if(ok){ toast('Zpráva zkopírována, vlož ji do WhatsAppu'); return; }
+  } catch(e){}
+  prompt('Zkopíruj zprávu:', msg);
+}
+
 function omShareFor(r, om){
   const base = Number(r.base_price || r.amount_due || 0);
   const needed = (om && om.players_needed) || 4;
@@ -2662,7 +2722,7 @@ async function renderOpen(){
         <ul><li>Zápas vypsal hráč, který si zarezervoval kurt.</li><li><b>Kurt platí organizátor</b>, podíl si domluvíte spolu (u zápasu je jeho kontakt).</li><li>V appce se neplatí.</li><li>Zápas založíš sám: při rezervaci zaškrtni „Chci hledat spoluhráče“.</li></ul></div>
     </div>
     <div class="om-how-sub"><b>Pravidla:</b> přihlásit se můžeš do zápasů pro svoji úroveň a o jeden stupeň výš nebo níž. Odhlásit se můžeš do 12 hodin před začátkem (zaplacený díl u zápasu klubu se vrací). Později se dá přihlásit jen na poslední volné místo.</div></div>`;
-  if(!rows.length){ el.innerHTML = admBox + howTo + emptyState('Zatím žádný otevřený zápas', 'Založ ho sám: při rezervaci kurtu zaškrtni „Chci hledat spoluhráče“.'); omAdminFillCourts(); return; }
+  if(!rows.length){ el.innerHTML = admBox + howTo + emptyState('Zatím žádný otevřený zápas', 'Založ ho sám: při rezervaci kurtu zaškrtni „Chci hledat spoluhráče“.'); omApplyDeepLink(); omAdminFillCourts(); return; }
   const myId = profile && profile.user_id;
   const myLevel = profile && profile.level;
   const levelOf = code => (PLAYER_LEVELS.find(l=>l.code===code) || {label: code || '—'}).label;
@@ -2708,9 +2768,9 @@ async function renderOpen(){
           ${phoneDigits ? `<a class="btn btn-sm btn-dark" style="text-decoration:none;display:inline-block;margin-top:8px;" target="_blank" rel="noopener" href="https://wa.me/${phoneDigits}?text=${encodeURIComponent(`Ahoj, jsem přihlášen/á do tvého Open Matche (${fmtDate(r.date)} ${formatHour(r.start_hour)}). Kam mám poslat podíl ${share} Kč?`)}">Napsat na WhatsApp</a>` : ''}</div>`;
       }
     }
-    const waText = encodeURIComponent(`🎾 Hledáme hráče! ${court.locationName} – ${court.name}, ${fmtDate(r.date)} v ${formatHour(r.start_hour)}. Úroveň ${omRangeText(level)}. Chybí ${free} hráč(i), ${split ? '' : 'cca '}${share} Kč/os. Přihlas se: https://rezervace.padelklatovy.cz/#open-matches`);
+    OM_MSG[r.id] = omBuildMessage(r, om, court, all.length, needed, split, split ? share : 0);
     const modeBadge = split ? `<span class="om-badge ok" style="margin-left:6px;">platba v appce</span>` : '';
-    return `<div class="card om-card"><div class="info">
+    return `<div class="card om-card" id="om-card-${r.id}"><div class="info">
         <b>${escHtml(court.locationName)} · ${escHtml(court.name)} · ${formatHour(r.start_hour)}–${formatHour(r.end_hour)}</b>${modeBadge}
         <div class="meta">${fmtDate(r.date)} · ${split ? '' : 'cca '}<span class="om-b">${share} Kč</span> / hráč</div>
         <div class="meta">Úroveň zápasu <span class="om-b">${level ? escHtml(levelOf(level)) : 'libovolná'}</span>${level ? ` · přihlásit se můžou <span class="om-b">${omRangeText(level)}</span>` : ''}</div>
@@ -2720,9 +2780,10 @@ async function renderOpen(){
         ${isAdmin() && split ? `<div class="meta" style="margin-top:6px;"><button class="btn btn-sm btn-ghost" onclick="omAdminCancel('${r.id}')">Zrušit zápas (vrátit platby)</button></div>` : ''}
       </div><div class="actions">
         ${action}
-        ${free>0 ? `<a class="btn btn-sm btn-dark" style="text-decoration:none;" href="https://wa.me/?text=${waText}" target="_blank" rel="noopener">Sdílet</a>` : ''}
+        ${free>0 ? `<button class="btn btn-sm btn-dark" onclick="omShareWa('${r.id}')">Sdílet na WhatsApp</button><button class="btn btn-sm btn-ghost" onclick="omCopyMsg('${r.id}')">Kopírovat zprávu</button>` : ''}
       </div></div>`;
   }).join('');
+  omApplyDeepLink();
   omAdminFillCourts();
 }
 async function joinOpenMatch(reservationId){
