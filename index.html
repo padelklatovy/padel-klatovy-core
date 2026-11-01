@@ -1971,7 +1971,18 @@ async function openSlot(courtId, hour){
   if(daysAhead > loc.bookingWindowDays){ toast(`Tohle hřiště jde rezervovat max. ${loc.bookingWindowDays} dní dopředu`); return; }
 
   const maxDur = computeMaxDuration(loc, courtId, hour);
-  if(maxDur < loc.minDuration){ toast(`Pro tenhle čas není dost volného prostoru na minimální rezervaci ${loc.minDuration} h`); return; }
+  if(maxDur < loc.minDuration){
+    const blk = bkBlock(loc, courtId, hour);
+    if(!(blk.end - blk.start >= loc.slotStep - 1e-9 && Math.abs(blk.end - blk.start) < loc.minDuration - 1e-9)){
+      toast(`Pro tenhle čas není dost volného prostoru na minimální rezervaci ${loc.minDuration} h`); return;
+    }
+    // volný blok kratší než minimum = půlhodinka, jde rezervovat celý
+    hour = blk.start;
+  } else if(bkEnds(loc, courtId, hour).length === 0){
+    const near = slotStarts(loc).filter(sh => bkEnds(loc, courtId, sh).length > 0).sort((a,b)=>Math.abs(a-hour)-Math.abs(b-hour))[0];
+    toast(near != null ? `V tomhle čase by zbyla nevyužitelná půlhodina. Nejbližší možný začátek: ${formatHour(near)}.` : 'Tenhle čas nejde rezervovat, zbyla by nevyužitelná půlhodina.');
+    return;
+  }
 
   openBookingModal({courtId, startHour:hour, maxDuration:maxDur, adminMode:false});
 }
@@ -2052,7 +2063,48 @@ function useSameLineup(){
   updatePriceBox();
   toast('Sestava doplněna — zkontroluj slevy, mohly se mezitím změnit');
 }
+
+/* ===== Hlídání děr a půlhodinky (jen běžní hráči; admin zadává cokoliv) =====
+   Souvislý volný úsek na kurtu = "blok". Rezervace smí zanechat před sebou i za sebou
+   buď 0, nebo aspoň minimální délku (1 h). Jinak by zbyla půlhodina, kterou nikdo nevyužije.
+   Výjimka: je-li celý volný blok kratší než minimum (typicky přesně 30 min), jde ho rezervovat
+   celý jako "půlhodinku" (cena = poměrná část hodinové ceny). */
+function bkOccupied(courtId, h){
+  return !!gridReservations.find(r => r.court_id===courtId && h >= r.start_hour - 1e-9 && h < r.end_hour - 1e-9 && !['cancelled_by_user','cancelled_by_admin','expired'].includes(r.status));
+}
+function bkWindow(loc, courtId){
+  const court = loc.courts.find(c=>c.id===courtId);
+  let open = court ? court.dayStart : loc.dayStart, close = court ? court.dayEnd : loc.dayEnd;
+  if(court && court.weekly){ const w = court.weekly[new Date(selectedDate+'T00:00:00').getDay()]; if(w){ open = w.start; close = w.end; } }
+  return { open, close };
+}
+function bkBlock(loc, courtId, hour){
+  const step = loc.slotStep, win = bkWindow(loc, courtId);
+  let s = hour; while(s - step >= win.open - 1e-9 && !bkOccupied(courtId, s - step)) s -= step;
+  let e = hour; while(e < win.close - 1e-9 && !bkOccupied(courtId, e)) e += step;
+  return { start: s, end: e };
+}
+function bkEnds(loc, courtId, start, ignoreEndGap){
+  const step = loc.slotStep, min = loc.minDuration;
+  const win = bkWindow(loc, courtId);
+  if(start < win.open - 1e-9 || start >= win.close - 1e-9 || bkOccupied(courtId, start)) return [];
+  const b = bkBlock(loc, courtId, start);
+  const len = b.end - b.start;
+  if(len < min - 1e-9) return Math.abs(start - b.start) < 1e-9 ? [b.end] : [];   // půlhodinka: celý malý blok
+  const before = start - b.start;
+  if(before > 1e-9 && before < min - 1e-9) return [];                             // před rezervací by zbyla díra
+  const ends = [];
+  for(let d = min; start + d <= b.end + 1e-9 && d <= MAX_DURATION_CAP + 1e-9; d += step){
+    const e = Math.round((start + d) * (1/step)) / (1/step);
+    const rem = b.end - e;
+    if(ignoreEndGap || rem < 1e-9 || rem >= min - 1e-9) ends.push(e);               // za rezervací by zbyla díra
+  }
+  return ends;
+}
 function getValidStarts(loc, courtId){
+  if(typeof booking !== 'undefined' && booking && !booking.adminMode){
+    return slotStarts(loc).filter(s => bkEnds(loc, courtId, s).length > 0);
+  }
   return slotStarts(loc).filter(s => computeMaxDuration(loc, courtId, s) >= loc.minDuration);
 }
 function populateCourtSelect(){
@@ -2094,9 +2146,14 @@ function onSoloTrainingToggle(checked){
 function populateEndSelect(){
   const loc = booking.loc;
   const maxDur = booking.isSolo ? Math.min(Math.max(1, loc.minDuration), computeMaxDuration(loc, booking.courtId, booking.startHour, booking.adminMode)) : computeMaxDuration(loc, booking.courtId, booking.startHour, booking.adminMode);
-  const ends = [];
-  for(let d=loc.minDuration; d<=maxDur+1e-9; d+=loc.slotStep){
-    ends.push(Math.round((booking.startHour+d)*(1/loc.slotStep))/(1/loc.slotStep));
+  let ends = [];
+  if(!booking.adminMode){
+    ends = bkEnds(loc, booking.courtId, booking.startHour, booking.isSolo);
+    if(booking.isSolo) ends = ends.filter(e => e - booking.startHour <= maxDur + 1e-9);
+  } else {
+    for(let d=loc.minDuration; d<=maxDur+1e-9; d+=loc.slotStep){
+      ends.push(Math.round((booking.startHour+d)*(1/loc.slotStep))/(1/loc.slotStep));
+    }
   }
   const sel = document.getElementById('endTimeSelect');
   const currentEnd = booking.startHour + booking.duration;
@@ -2114,7 +2171,15 @@ function updateDurationSummary(){
   const court = booking.loc.courts.find(c=>c.id===booking.courtId);
   document.getElementById('bookingSub').textContent = `${booking.loc.name} · ${court.name} · ${fmtDate(selectedDate)}`;
   document.getElementById('durationValueLabel').textContent = `${booking.duration} h`;
-  document.getElementById('durationNote').textContent = `${formatHour(booking.startHour)}–${formatHour(booking.startHour+booking.duration)}`;
+  const halfFill = !booking.adminMode && booking.duration < booking.loc.minDuration - 1e-9;
+  document.getElementById('durationNote').textContent = `${formatHour(booking.startHour)}–${formatHour(booking.startHour+booking.duration)}` + (halfFill ? ' · půlhodinka, vyplní volné místo mezi rezervacemi' : '');
+  const repBox = document.getElementById('repeatCheck').closest('.checkbox-row');
+  if(halfFill){
+    document.getElementById('repeatCheck').checked = false; document.getElementById('repeatBox').style.display = 'none';
+    document.getElementById('openMatchCheck').checked = false; document.getElementById('openMatchLevelBox').style.display = 'none';
+  }
+  if(repBox) repBox.style.display = halfFill ? 'none' : '';
+  document.getElementById('openMatchRow').style.display = halfFill ? 'none' : (document.getElementById('repeatCheck').checked ? 'none' : '');
   updatePriceBox();
 }
 function onRepeatToggle(checked){
