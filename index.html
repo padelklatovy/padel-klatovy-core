@@ -4870,8 +4870,9 @@ async function renderNovinky(){
   ]);
   if(newsRes.error){ elSvet.innerHTML = emptyState('Chyba', escHtml(newsRes.error.message)); elKlub.innerHTML = ''; return; }
   const rows = newsRes.data || [];
-  const klubRows = rows.filter(r=>r.section==='klub');
-  const svetRows = rows.filter(r=>r.section==='svet').slice(0, 40);
+  const klubRows = rows.filter(r=>r.section==='klub' && !r.hidden);
+  const svetRows = rows.filter(r=>r.section==='svet' && !r.hidden).slice(0, 40);
+  const hiddenRows = isAdmin() ? rows.filter(r=>r.hidden) : [];
   const events = evRes.data || [];
 
   const eventCards = events.map(ev=>{
@@ -4890,6 +4891,15 @@ async function renderNovinky(){
   elSvet.innerHTML = `<div class="news-sec-title">Ze světa padelu</div>` + (svetRows.length
     ? svetRows.map(newsCardHtml).join('') + `<div class="news-note">Zprávy shrnuje automaticky asistent z veřejných padelových webů. Podrobnosti vždy najdeš v původním článku.</div>`
     : `<div class="empty-state"><div class="em-title">Zatím tu nic není</div>Nové zprávy ze světa padelu se tu objeví každé ráno.</div>`);
+
+  const old = document.getElementById('novinkySkryte'); if(old) old.remove();
+  if(hiddenRows.length){
+    const det = document.createElement('details');
+    det.id = 'novinkySkryte';
+    det.style.cssText = 'margin-top:24px;';
+    det.innerHTML = `<summary style="cursor:pointer;color:var(--text-muted,#888);font-size:14px;padding:8px 0;">Skryté zprávy (${hiddenRows.length}) – vidí je jen admin</summary>${hiddenRows.map(newsCardHtml).join('')}`;
+    elSvet.parentNode.appendChild(det);
+  }
 
   const visible = rows.filter(r=>!r.hidden);
   if(visible.length){
