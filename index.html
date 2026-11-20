@@ -273,7 +273,8 @@
   .badge-discount{background:var(--ok-bg);color:var(--ok-text);font-size:11px;padding:2px 8px;border-radius:100px;font-weight:600;}
 
   .qr-box{text-align:center;padding:10px 0;}
-  .qr-visual{width:240px;height:240px;margin:0 auto 14px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:10px;}
+  .qr-visual{width:264px;height:264px;margin:0 auto 14px;background:#fff;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;padding:22px;box-sizing:border-box;}
+  .qr-visual img,.qr-visual canvas{display:block;max-width:100%;height:auto;}
   .qr-meta{font-size:13px;color:#5c574e;line-height:1.6;margin-bottom:16px;}
   .qr-meta b{color:var(--fg);}
   .status-pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-head);font-weight:600;font-size:13px;padding:6px 14px;border-radius:100px;text-transform:uppercase;letter-spacing:0.3px;}
@@ -1246,7 +1247,7 @@ function buildSpdPaymentString(amount, vs, message){
   // Český standard "QR Platba" (SPD - Short Payment Descriptor).
   // Zprávu omezíme na bezpečná ASCII-přátelská data (banky s diakritikou
   // umí být nevyzpytatelné), max ~60 znaků dle doporučení.
-  const cleanMsg = message.normalize('NFD').replace(/[\u0300-\u036f]/g,'').slice(0,60);
+  const cleanMsg = message.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9 .,\-]/g,' ').replace(/\s+/g,' ').trim().slice(0,60);
   const amt = Number(amount).toFixed(2);
   return `SPD*1.0*ACC:${CLUB_IBAN}*AM:${amt}*CC:CZK*X-VS:${vs}*MSG:${cleanMsg}`;
 }
@@ -1256,6 +1257,8 @@ function renderPaymentQR(container, amount, vs, message){
     text: buildSpdPaymentString(amount, vs, message),
     width: 220,
     height: 220,
+    colorDark: '#000000',
+    colorLight: '#ffffff',
     correctLevel: QRCode.CorrectLevel.M
   });
 }
@@ -2629,12 +2632,41 @@ async function renderMine(){
       </div><div class="actions">
         ${statusHtml}
         ${r.status==='pending_payment' ? `<button class="btn btn-sm btn-ghost" onclick='openPaymentModalFor(${JSON.stringify(r)})'>Zaplatit</button>` : ''}
+        ${['pending_payment','paid_confirmed'].includes(r.status) && r.date >= todayStr ? `<button class="btn btn-sm btn-ghost" onclick='addReservationToCalendar(${JSON.stringify(r)})'>📅 Do kalendáře</button>` : ''}
         ${canInvite ? `<button class="btn btn-sm btn-ghost" onclick="createPlayerInvite('${r.id}')">👥 Pozvat spoluhráče</button>` : ''}
         ${['pending_payment','paid_confirmed'].includes(r.status) ? `<a class="meta" href="tel:${CLUB_PHONE.replace(/\s/g,'')}" style="text-decoration:underline;">Zrušení: zavolej ${CLUB_PHONE}</a>` : ''}
       </div></div>`;
   }).join('');
 
   el.innerHTML = seriesCards + singleCards || emptyState('Zatím žádné aktivní rezervace', 'Vyber si hřiště v Rezervacích.');
+}
+function icsEscape(t){ return String(t||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
+function addReservationToCalendar(r){
+  try{
+    const court = findCourt(r.court_id);
+    const pad = n=>String(n).padStart(2,'0');
+    const fmt = (dateStr,h)=>{ const hh=Math.floor(h), mm=Math.round((h-hh)*60); return dateStr.replace(/-/g,'')+'T'+pad(hh)+pad(mm)+'00'; };
+    const now = new Date(); const stamp = now.getUTCFullYear()+pad(now.getUTCMonth()+1)+pad(now.getUTCDate())+'T'+pad(now.getUTCHours())+pad(now.getUTCMinutes())+pad(now.getUTCSeconds())+'Z';
+    const lines = [
+      'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Padel Klatovy//Rezervace//CS','CALSCALE:GREGORIAN','METHOD:PUBLISH',
+      'BEGIN:VTIMEZONE','TZID:Europe/Prague',
+      'BEGIN:STANDARD','DTSTART:19701025T030000','RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU','TZOFFSETFROM:+0200','TZOFFSETTO:+0100','TZNAME:CET','END:STANDARD',
+      'BEGIN:DAYLIGHT','DTSTART:19700329T020000','RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU','TZOFFSETFROM:+0100','TZOFFSETTO:+0200','TZNAME:CEST','END:DAYLIGHT',
+      'END:VTIMEZONE',
+      'BEGIN:VEVENT','UID:'+r.id+'@padelklatovy.cz','DTSTAMP:'+stamp,
+      'DTSTART;TZID=Europe/Prague:'+fmt(r.date,r.start_hour),
+      'DTEND;TZID=Europe/Prague:'+fmt(r.date,r.end_hour),
+      'SUMMARY:'+icsEscape('Padel Klatovy – '+court.name),
+      'LOCATION:'+icsEscape('Padel Klatovy, '+court.locationName),
+      'DESCRIPTION:'+icsEscape('Rezervace kurtu '+court.name+'. Zrušení: '+CLUB_PHONE),
+      'BEGIN:VALARM','TRIGGER:-PT2H','ACTION:DISPLAY','DESCRIPTION:Padel za 2 hodiny','END:VALARM',
+      'END:VEVENT','END:VCALENDAR'];
+    const blob = new Blob([lines.join('\r\n')], { type:'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'padel-'+r.date+'.ics';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  }catch(e){ toast('Kalendář se nepodařilo vytvořit'); }
 }
 async function createPlayerInvite(reservationId){
   const { data: invite, error } = await sb.from('player_invites').insert({ reservation_id: reservationId, invited_by: profile.user_id }).select().single();
@@ -2669,6 +2701,7 @@ async function claimPlayerInvite(inviteId){
   toast(`✅ Přidáno! Hraješ ${fmtDate(res.date)} v ${formatHour(res.start_hour)}`);
   history.replaceState(null, '', location.pathname);
   switchView('mine');
+  if(confirm('Přidat termín do kalendáře v telefonu?')) addReservationToCalendar(res);
 }
 async function cancelReservation(id){
   const status = (isAdmin() || (profile && profile.role==='recepce')) ? 'cancelled_by_admin' : 'cancelled_by_user';
